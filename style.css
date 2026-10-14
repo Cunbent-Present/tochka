@@ -3,6 +3,8 @@
   --bg:#F4F5F1; --panel:#FFFFFF; --fg:#1B2126; --muted:#66717A; --line:#DCE1DC;
   --accent:#D9472B; --accent-fg:#FFFFFF; --soft:#EEF1EC;
   --ok:#2E8A57; --warn:#B3541E; --shadow:0 8px 30px rgba(20,30,35,.16);
+  --edge:#C7CDC6; --hi:rgba(255,255,255,.9); --lift:0 1px 2px rgba(20,30,35,.08),0 6px 16px rgba(20,30,35,.08);
+  --deep:0 2px 4px rgba(20,30,35,.08),0 14px 28px -6px rgba(20,30,35,.22),0 30px 60px -20px rgba(20,30,35,.28);
   --f-display:"Unbounded","Onest",system-ui,sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   color-scheme:light;
@@ -10,7 +12,9 @@
 @media (prefers-color-scheme: dark){:root{
   --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B;
   --accent:#F0644A; --accent-fg:#1A0E0B; --soft:#202931;
-  --ok:#5BC98A; --warn:#F09A5E; --shadow:0 8px 30px rgba(0,0,0,.45); color-scheme:dark}}
+  --ok:#5BC98A; --warn:#F09A5E; --shadow:0 8px 30px rgba(0,0,0,.45);
+  --edge:#0B0F12; --hi:rgba(255,255,255,.07); --lift:0 1px 2px rgba(0,0,0,.4),0 6px 16px rgba(0,0,0,.3);
+  --deep:0 2px 4px rgba(0,0,0,.4),0 14px 28px -6px rgba(0,0,0,.55),0 30px 60px -20px rgba(0,0,0,.6); color-scheme:dark}}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -149,4 +153,70 @@ a{color:inherit}
   .card{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));width:auto;max-width:none;bottom:calc(78px + env(safe-area-inset-bottom,0px));max-height:62%}
   .fab .lbl{display:none}
 }
-@media (prefers-reduced-motion:reduce){.note-panel,.toast{transition:none}}
+
+
+/* ---------- объём интерфейса ---------- */
+/* Кнопки — как физические клавиши: светлая грань сверху, «торец» снизу, при нажатии утапливаются */
+.chip,.city,.btn,.mini,.x,.star,.cities button,.res,.listtoggle,.st{
+  box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 3px 8px rgba(20,30,35,.06);
+  transition:transform .12s ease,box-shadow .12s ease,background-color .15s ease}
+.chip:active,.city:active,.btn:active,.mini:active,.x:active,.star:active,.cities button:active,.res:active,.listtoggle:active,.st:active{
+  transform:translateY(2px);box-shadow:inset 0 1px 0 var(--hi),0 0 0 var(--edge)}
+.chip[aria-pressed="true"]{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 0 color-mix(in srgb,var(--fg) 60%,#000),0 4px 10px rgba(20,30,35,.15)}
+.chip.nosite[aria-pressed="true"],.btn.pri{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 0 color-mix(in srgb,var(--accent) 65%,#000),0 6px 14px color-mix(in srgb,var(--accent) 30%,transparent)}
+.chip.favchip[aria-pressed="true"]{background:#E3A008;border-color:#E3A008;color:#1B1405;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 0 #A87508,0 6px 14px rgba(227,160,8,.3)}
+.dl{background:linear-gradient(180deg,color-mix(in srgb,var(--fg) 82%,var(--bg)),var(--fg));box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 color-mix(in srgb,var(--fg) 55%,#000),0 8px 18px rgba(20,30,35,.2);transition:transform .12s ease,box-shadow .12s ease}
+.dl:hover{transform:translateY(-1px)}
+.dl:active{transform:translateY(3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 #000}
+.search input{box-shadow:inset 0 2px 4px rgba(20,30,35,.08)}
+.top{box-shadow:0 1px 0 var(--line),0 10px 24px -14px rgba(20,30,35,.35);position:relative}
+
+/* Плавающие панели на карте — «приподняты» над ней */
+.tools{box-shadow:var(--deep)}
+.tools button{transition:background-color .15s ease,transform .12s ease}
+.tools button:hover{background:var(--soft)}
+.tools button:active{transform:scale(.92)}
+.status{box-shadow:var(--deep)}
+
+/* Карточка заведения всплывает с наклоном */
+.card{box-shadow:var(--deep);transform-origin:50% 100%}
+.card.pop{animation:rise .42s cubic-bezier(.2,.9,.25,1.15)}
+@keyframes rise{from{opacity:0;transform:perspective(900px) rotateX(14deg) translateY(26px) scale(.97)}to{opacity:1;transform:none}}
+.card-h{background:linear-gradient(180deg,var(--soft),transparent);border-radius:16px 16px 0 0}
+.card-btns{display:flex;gap:6px;align-items:flex-start}
+.star{width:34px;height:34px;border-radius:10px;border:0;background:var(--soft);font-size:18px;line-height:1;color:var(--muted)}
+.star[aria-pressed="true"]{color:#E3A008;background:color-mix(in srgb,#E3A008 16%,var(--panel))}
+.favmark{color:#E3A008}
+
+/* Список: элементы чуть приподнимаются под курсором */
+.item{transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease}
+@media (hover:hover){.item:hover{transform:translateX(3px);box-shadow:inset 3px 0 0 var(--accent)}}
+
+/* Блокнот и выбор города выезжают в перспективе */
+.note-panel{box-shadow:var(--deep);transform:perspective(1200px) translateX(105%) rotateY(-12deg);transform-origin:100% 50%;transition:transform .38s cubic-bezier(.2,.8,.2,1),visibility .38s}
+.note-panel.on{transform:perspective(1200px) translateX(0) rotateY(0)}
+.sheet-card{box-shadow:var(--deep);animation:rise .38s cubic-bezier(.2,.9,.25,1.1)}
+.fab{background:linear-gradient(180deg,color-mix(in srgb,var(--fg) 80%,var(--bg)),var(--fg));box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 3px 0 color-mix(in srgb,var(--fg) 55%,#000),var(--deep);transition:transform .12s ease,box-shadow .12s ease}
+.fab:hover{transform:translateY(-2px)}
+.fab:active{transform:translateY(3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 #000,var(--lift)}
+.toast{box-shadow:var(--deep)}
+
+/* Статусы заметок */
+.nt-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.st{border:1px solid transparent;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.st-new{background:var(--soft);color:var(--muted);border-color:var(--line)}
+.st-sent{background:#DCE8F5;color:#22507E}
+.st-reply{background:#EFE3F7;color:#6B3F94}
+.st-deal{background:#DDF1E4;color:#1F6B41}
+.st-no{background:#F6DEDA;color:#9A3524}
+@media (prefers-color-scheme: dark){
+  .st-sent{background:#1E3348;color:#9CC4EC}
+  .st-reply{background:#2F2440;color:#CDB1EA}
+  .st-deal{background:#1C3426;color:#8FD8AA}
+  .st-no{background:#3D2320;color:#F0A496}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .note-panel,.toast,.chip,.city,.btn,.mini,.x,.star,.dl,.fab,.item,.tools button{transition:none}
+  .card.pop,.sheet-card{animation:none}
+}

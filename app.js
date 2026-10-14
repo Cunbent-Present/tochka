@@ -366,9 +366,23 @@ async function geocode(q) {
 }
 $('#cres').onclick = e => { const b = e.target.closest('[data-lat]'); if (b) flyToCity(+b.dataset.lat, +b.dataset.lon, +b.dataset.z); };
 
+/* ---------- избранное ---------- */
+const FAV_KEY = 'tochka-favs';
+let favs = store.get(FAV_KEY, {});
+for (const p of Object.values(favs)) if (!places.has(p.id)) places.set(p.id, p);
+const isFav = id => !!favs[id];
+function toggleFav(id) {
+  const p = places.get(id); if (!p) return;
+  if (favs[id]) { delete favs[id]; toast('Убрано из избранного'); }
+  else { favs[id] = p; toast('Добавлено в избранное'); }
+  store.set(FAV_KEY, favs);
+  if (favOnly) applyFilter(); else drawList();
+}
+
 /* ---------- фильтр и поиск ---------- */
-let cat = 'all', noSite = false, sel = null, visible = [];
+let cat = 'all', noSite = false, favOnly = false, sel = null, visible = [];
 function matches(p, q) {
+  if (favOnly && !favs[p.id]) return false;
   if (cat !== 'all' && p.cat !== cat) return false;
   if (noSite && p.site) return false;
   if (!q) return true;
@@ -401,6 +415,18 @@ catChips.push(chip('Все', null, true, pickCat('all')));
 for (const [k, v] of Object.entries(CATS)) catChips.push(chip(v.name, v.color, false, pickCat(k)));
 const sep = document.createElement('span'); sep.className = 'chip-sep'; chips.appendChild(sep);
 chip('Без сайта', null, false, b => { noSite = !noSite; b.setAttribute('aria-pressed', noSite); applyFilter(); }, 'nosite');
+chip('★ Избранное', null, false, b => {
+  favOnly = !favOnly; b.setAttribute('aria-pressed', favOnly);
+  if (favOnly && !Object.keys(favs).length) toast('Пока пусто: нажмите ☆ в карточке заведения');
+  applyFilter();
+  if (favOnly && visible.length && innerWidth > 760) fitTo(visible);
+}, 'favchip');
+function fitTo(list) {
+  if (list.length === 1) { map.flyTo({ center: [list[0].lon, list[0].lat], zoom: 16, essential: true }); return; }
+  const b = new maplibregl.LngLatBounds();
+  list.forEach(p => b.extend([p.lon, p.lat]));
+  map.fitBounds(b, { padding: 80, maxZoom: 16, duration: REDUCE ? 0 : 1200 });
+}
 
 // «Скачать» в углу — прячем, если Точка уже открыта как установленное приложение
 const inApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.Capacitor ||
@@ -414,18 +440,19 @@ function visibleInView() {
 }
 function drawList() {
   const c = map.getCenter(), cc = [c.lat, c.lng];
-  const inView = visibleInView().map(p => ({ p, d: distM(cc, [p.lat, p.lon]) })).sort((a, z) => a.d - z.d).slice(0, 150);
+  const src = favOnly ? visible : visibleInView();
+  const inView = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]) })).sort((a, z) => a.d - z.d).slice(0, 150);
   const dist = d => d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км';
   const L = $('#list');
-  L.innerHTML = `<div class="list-head"><b>На экране: ${inView.length}</b><span class="small">загружено ${places.size}</span></div>` +
+  L.innerHTML = `<div class="list-head"><b>${favOnly ? 'Избранное' : 'На экране'}: ${inView.length}</b><span class="small">загружено ${places.size}</span></div>` +
     (inView.length ? inView.map(({ p, d }) => `
       <button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
         <span class="bar" style="background:${CATS[p.cat].color}"></span>
-        <span><div class="nm">${esc(p.name)}</div>
+        <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
         <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${dist(d)}</div>
         ${p.site ? '' : '<div class="flag">Нет сайта</div>'}</span>
       </button>`).join('')
-    : `<div class="empty">${map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.' : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.'}</div>`);
+    : `<div class="empty">${favOnly ? 'В избранном пока ничего нет. Откройте заведение и нажмите ☆ рядом с названием.' : map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.' : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.'}</div>`);
   L.querySelectorAll('.item').forEach(b => b.onclick = () => { select(b.dataset.id, true); $('#main').classList.remove('showlist'); $('#lt').textContent = 'Список'; });
 }
 $('#lt').onclick = () => { const m = $('#main'); m.classList.toggle('showlist'); $('#lt').textContent = m.classList.contains('showlist') ? 'Карта' : 'Список'; };
@@ -465,7 +492,8 @@ function select(id, fly) {
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>
       <h2>${esc(p.name)}</h2></div>
-      <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div>
+      <div class="card-btns"><button class="star" type="button" id="fav" aria-pressed="${isFav(p.id)}" aria-label="В избранное">${isFav(p.id) ? '★' : '☆'}</button>
+      <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div></div>
     <div class="rows">
       ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
@@ -483,7 +511,10 @@ function select(id, fly) {
     <div class="src">Источник: OpenStreetMap. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a></div>`;
   $('#card').hidden = false;
   $('#cx').onclick = closeCard;
-  $('#tonote').onclick = () => { openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
+  $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
+  // перезапуск «всплытия» карточки
+  const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
+  $('#tonote').onclick = () => { notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
   drawList();
 }
 function closeCard() {
@@ -507,29 +538,54 @@ function setStatus(m) { const s = $('#status'); s.textContent = m; s.hidden = !m
 
 /* ---------- блокнот ---------- */
 let notes = store.get(NOTES_KEY, []);
+let notePlace = null;    // заведение, из карточки которого открыли блокнот
+const STATUSES = [['new', 'Новый'], ['sent', 'Написал'], ['reply', 'Ответил'], ['deal', 'Договорились'], ['no', 'Отказ']];
+const stName = s => (STATUSES.find(x => x[0] === s) || STATUSES[0])[1];
 const saveNotes = () => { if (!store.set(NOTES_KEY, notes)) toast('Не удалось сохранить: память браузера заполнена'); };
 function drawNotes() {
   $('#cnt').textContent = notes.length;
   $('#nl').innerHTML = notes.length ? notes.map(n => `
-    <div class="note"><p>${esc(n.t)}</p>
-      <div class="nf"><span>${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+    <div class="note"><div class="nt-top">
+      <button class="st st-${n.s || 'new'}" type="button" data-st="${n.d}" title="Нажмите, чтобы сменить статус">${stName(n.s)}</button>
+      <span class="small">${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+      <p>${esc(n.t)}</p>
+      <div class="nf">
+      ${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : '<span></span>'}
       <div><button class="mini" type="button" data-copy="${esc(n.t)}">Копировать</button>
       <button class="mini" type="button" data-del="${n.d}">Удалить</button></div></div></div>`).join('')
     : '<div class="hint">Пока пусто. Записывайте сюда телефоны, имена и кому написать. Или откройте заведение на карте и нажмите «В блокнот» — контакты подставятся сами.</div>';
   $('#nl').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     notes = notes.filter(n => n.d !== +b.dataset.del); saveNotes(); drawNotes(); toast('Заметка удалена');
   });
+  $('#nl').querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
+    const n = notes.find(x => x.d === +b.dataset.st); if (!n) return;
+    const i = STATUSES.findIndex(x => x[0] === (n.s || 'new'));
+    n.s = STATUSES[(i + 1) % STATUSES.length][0]; saveNotes(); drawNotes();
+  });
+  $('#nl').querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
+    const n = notes.find(x => x.d === +b.dataset.go); if (!n) return;
+    $('#np').classList.remove('on');
+    if (n.pid && !places.has(n.pid) && n.place) places.set(n.pid, n.place);
+    if (n.pid && places.has(n.pid)) select(n.pid, true);
+    else map.flyTo({ center: [n.lon, n.lat], zoom: 16.5, essential: true });
+  });
 }
 $('#nf').addEventListener('submit', e => {
   e.preventDefault();
   const t = $('#nt').value.trim(); if (!t) { $('#nt').focus(); return; }
-  notes.unshift({ t, d: Date.now() }); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
+  const n = { t, d: Date.now(), s: 'new' };
+  if (notePlace) { n.pid = notePlace.id; n.lat = notePlace.lat; n.lon = notePlace.lon; n.place = notePlace; notePlace = null; }
+  notes.unshift(n); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
 });
 $('#copyall').onclick = () => notes.length ? copy(notes.map(n => n.t).join('\n\n———\n\n')) : toast('Блокнот пуст');
 function openNotes() { $('#np').classList.add('on'); }
 $('#fab').onclick = () => { const on = $('#np').classList.toggle('on'); if (on) $('#nt').focus(); };
-$('#npx').onclick = () => $('#np').classList.remove('on');
-addEventListener('keydown', e => { if (e.key === 'Escape') { $('#np').classList.remove('on'); closeSheet(); } });
+$('#npx').onclick = () => { $('#np').classList.remove('on'); if (!$('#nt').value.trim()) notePlace = null; };
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { $('#np').classList.remove('on'); closeSheet(); }
+  // «/» — быстро перейти к поиску (как на многих сайтах)
+  if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); $('#q').focus(); }
+});
 
 /* ---------- старт ---------- */
 drawNotes();
