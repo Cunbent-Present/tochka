@@ -1,0 +1,25 @@
+{
+  "name": "tochka",
+  "version": "1.0.0",
+  "description": "Точка — карта салонов и барбершопов Москвы",
+  "author": "Cunbent",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "io.github.cunbentpresent.tochka",
+    "productName": "Точка",
+    "executableName": "tochka",
+    "files": ["main.js", "offline.html", "icon.png"],
+    "directories": { "output": "dist" },
+    "win": { "icon": "icon.png", "target": ["nsis"] },
+    "nsis": {
+      "oneClick": true,
+      "artifactName": "tochka-setup.exe",
+      "shortcutName": "Точка",
+      "createDesktopShortcut": true
+    }
+  }
+}

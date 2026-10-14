@@ -1,0 +1,46 @@
+# Собирает установщик для Windows и выкладывает его в Releases.
+# Ссылка на скачивание:
+# https://github.com/Cunbent-Present/tochka/releases/download/windows/tochka-setup.exe
+name: Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'native-win/**'
+      - 'icons/**'
+      - '.github/workflows/windows.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Собрать установщик
+        working-directory: native-win
+        shell: bash
+        run: |
+          cp ../icons/icon-512.png icon.png
+          npm install
+          npx electron-builder --win nsis --publish never
+
+      - name: Выложить в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows
+          name: Точка для Windows
+          body: |
+            Скачайте tochka-setup.exe и запустите.
+            Если Windows покажет «Windows защитил ваш компьютер» — нажмите «Подробнее» → «Выполнить в любом случае».
+            Приложение открывает актуальную версию Точки, поэтому обновлять его почти никогда не нужно.
+          files: native-win/dist/tochka-setup.exe
+          make_latest: false
