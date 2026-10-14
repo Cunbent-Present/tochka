@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.cunbentpresent.tochka",
+  "appName": "Точка",
+  "webDir": "www",
+  "server": {
+    "url": "https://cunbent-present.github.io/tochka/",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#1B2126"
+  }
+}

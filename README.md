@@ -33,3 +33,12 @@
 - `style.css` — оформление (светлая и тёмная тема)
 - `app.js` — карта, загрузка данных, поиск, карточки, блокнот
 - `sw.js`, `manifest.webmanifest`, `icons/` — установка на телефон
+
+## Android-приложение (APK)
+
+APK собирается автоматически на GitHub (вкладка **Actions → Android APK**) и выкладывается в **Releases**.
+
+Постоянная ссылка на скачивание:
+https://github.com/Cunbent-Present/tochka/releases/latest/download/tochka.apk
+
+Приложение открывает сайт `cunbent-present.github.io/tochka`, поэтому все изменения сайта сразу видны и в APK — пересобирать его не нужно. Код обёртки лежит в папке `native/`.

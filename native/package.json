@@ -1,0 +1,11 @@
+{
+  "name": "tochka-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Android-обёртка приложения Точка (Capacitor). Открывает сайт на GitHub Pages.",
+  "dependencies": {
+    "@capacitor/android": "6.2.0",
+    "@capacitor/cli": "6.2.0",
+    "@capacitor/core": "6.2.0"
+  }
+}
