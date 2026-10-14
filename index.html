@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Точка — салоны и барбершопы Москвы</title>
+<meta name="description" content="Карта барбершопов, салонов красоты, маникюра и СПА Москвы с поиском и блокнотом.">
+<meta name="theme-color" content="#1B2126">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><i></i>Точка</div>
+    <label class="search" for="q">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Барбершоп, маникюр, название, улица…" autocomplete="off" enterkeyhint="search">
+      <button class="clear" id="clear" type="button" aria-label="Очистить" hidden>×</button>
+    </label>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <div class="main" id="main">
+    <aside class="list" id="list" aria-label="Результаты"></aside>
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="status" id="status" hidden></div>
+      <button class="listtoggle" id="lt" type="button">Список</button>
+      <div class="tools">
+        <button id="zin" type="button" aria-label="Приблизить">+</button>
+        <button id="zout" type="button" aria-label="Отдалить">−</button>
+        <button id="loc" type="button" aria-label="Где я">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        </button>
+      </div>
+      <article class="card" id="card" hidden></article>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fab" type="button" aria-label="Открыть блокнот">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+  <span class="lbl">Блокнот</span><span class="n" id="cnt">0</span>
+</button>
+
+<aside class="note-panel" id="np" aria-label="Блокнот">
+  <div class="np-h"><h3>Блокнот</h3><button class="x" id="npx" type="button" aria-label="Закрыть">×</button></div>
+  <form class="np-form" id="nf">
+    <textarea id="nt" placeholder="Имя, телефон, кому написать и о чём…"></textarea>
+    <div class="np-row">
+      <button class="btn" type="button" id="copyall">Скопировать все</button>
+      <button class="btn pri" type="submit">Сохранить</button>
+    </div>
+  </form>
+  <div class="np-list" id="nl"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
