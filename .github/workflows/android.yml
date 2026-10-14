@@ -30,8 +30,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
+      # Android SDK уже установлен на раннерах GitHub (ANDROID_HOME)
       - name: Создать Android-проект
         working-directory: native
         run: |
