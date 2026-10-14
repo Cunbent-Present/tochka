@@ -41,6 +41,7 @@ a{color:inherit}
 .chip .dot{width:8px;height:8px;border-radius:50%}
 .chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .chip.nosite[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.chip.dl{text-decoration:none;color:var(--fg);border-style:dashed}
 .chip-sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
 
 .main{display:grid;grid-template-columns:340px 1fr;min-height:0;position:relative}

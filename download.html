@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Скачать Точку</title>
+<meta name="description" content="Установите Точку — карту барбершопов, салонов красоты, маникюра и СПА Москвы — на Android, Windows или iPhone.">
+<meta name="theme-color" content="#1B2126">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Страница загрузки: заголовок, три карточки платформ (ваша — первой), ссылка «поделиться» */
+:root{
+  --bg:#F4F5F1; --panel:#FFFFFF; --fg:#1B2126; --muted:#66717A; --line:#DCE1DC;
+  --accent:#D9472B; --accent-fg:#FFFFFF; --soft:#EEF1EC; --shadow:0 8px 30px rgba(20,30,35,.10);
+  --f-display:"Unbounded","Onest",system-ui,sans-serif;
+  --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B;
+  --accent:#F0644A; --accent-fg:#1A0E0B; --soft:#202931; --shadow:0 8px 30px rgba(0,0,0,.4); color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:880px;margin:0 auto;padding-block:calc(28px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:36px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;text-decoration:none}
+.brand i{width:12px;height:12px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.back{font-size:14px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:7px 12px;background:var(--panel)}
+h1{font-family:var(--f-display);font-weight:500;font-size:clamp(26px,5vw,38px);line-height:1.15;margin:0 0 12px;text-wrap:balance;letter-spacing:-.01em}
+.lead{color:var(--muted);max-width:56ch;margin:0 0 32px}
+.grid{display:grid;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;grid-template-columns:52px 1fr;gap:4px 18px}
+.card.mine{border-color:var(--accent);box-shadow:var(--shadow)}
+.ico{grid-row:span 3;width:52px;height:52px;border-radius:14px;background:var(--soft);display:grid;place-items:center}
+.ico svg{width:28px;height:28px;fill:none;stroke:var(--fg);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.card h2{font-size:19px;font-weight:600;margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-fg);background:var(--accent);border-radius:999px;padding:3px 9px}
+.card .sub{color:var(--muted);font-size:14.5px;margin:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:10px 16px;font-weight:500;font-size:15px;text-decoration:none;cursor:pointer;font-family:inherit;color:inherit}
+.btn.pri{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.card.mine .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.size{font-weight:400;opacity:.75;font-size:13px}
+details{grid-column:2;margin-top:10px}
+summary{cursor:pointer;color:var(--muted);font-size:14px}
+ol{margin:10px 0 0;padding-left:20px;font-size:14.5px}
+ol li+li{margin-top:6px}
+kbd{font-family:inherit;font-weight:600}
+.share{margin-top:28px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+.share code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13.5px;color:var(--fg);user-select:all;overflow-wrap:anywhere}
+.foot{margin-top:40px;font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+@media (max-width:520px){.card{grid-template-columns:1fr}.ico{grid-row:auto}details{grid-column:1}}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="./"><i></i>Точка</a>
+    <a class="back" href="./">Открыть карту</a>
+  </div>
+
+  <h1>Установите Точку на своё устройство</h1>
+  <p class="lead">Барбершопы, салоны красоты, маникюр, брови, тату и СПА Москвы на одной карте. С поиском, контактами и блокнотом. Бесплатно.</p>
+
+  <div class="grid" id="grid">
+    <section class="card" data-os="android">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></div>
+      <h2>Android</h2>
+      <p class="sub">Приложение-файл APK. Ставится за минуту, обновляется само.</p>
+      <div class="acts">
+        <a class="btn pri" href="https://github.com/Cunbent-Present/tochka/releases/latest/download/tochka.apk">Скачать APK <span class="size">3,7 МБ</span></a>
+        <button class="btn" type="button" data-install hidden>Установить без скачивания</button>
+      </div>
+      <details>
+        <summary>Как установить</summary>
+        <ol>
+          <li>Нажмите «Скачать APK» и откройте скачанный файл.</li>
+          <li>Если телефон спросит, разрешите установку из этого источника.</li>
+          <li>Если появится предупреждение Play Защиты: <kbd>Подробнее</kbd> → <kbd>Всё равно установить</kbd>.</li>
+        </ol>
+      </details>
+    </section>
+
+    <section class="card" data-os="windows">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 20.5h8M12 17v3.5"/></svg></div>
+      <h2>Windows</h2>
+      <p class="sub">Отдельное окно с иконкой на рабочем столе и в меню «Пуск».</p>
+      <div class="acts">
+        <a class="btn pri" href="https://github.com/Cunbent-Present/tochka/releases/download/windows/tochka-setup.exe">Скачать установщик <span class="size">78 МБ</span></a>
+        <button class="btn" type="button" data-install hidden>Установить через браузер</button>
+      </div>
+      <details>
+        <summary>Как установить</summary>
+        <ol>
+          <li>Запустите <kbd>tochka-setup.exe</kbd>, приложение установится само.</li>
+          <li>Если Windows покажет «Windows защитил ваш компьютер»: <kbd>Подробнее</kbd> → <kbd>Выполнить в любом случае</kbd>.</li>
+          <li>Лёгкий вариант без файла: откройте карту в Edge или Chrome и нажмите значок установки в адресной строке.</li>
+        </ol>
+      </details>
+    </section>
+
+    <section class="card" data-os="ios">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 5h3"/></svg></div>
+      <h2>iPhone и iPad</h2>
+      <p class="sub">Добавьте Точку на экран «Домой». Откроется на весь экран, как обычное приложение.</p>
+      <div class="acts">
+        <a class="btn pri" href="./">Открыть в Safari</a>
+      </div>
+      <details>
+        <summary>Как установить</summary>
+        <ol>
+          <li>Откройте эту страницу в <kbd>Safari</kbd>, в других браузерах так не получится.</li>
+          <li>Нажмите кнопку «Поделиться» (квадрат со стрелкой вверх).</li>
+          <li>Выберите <kbd>На экран «Домой»</kbd> → <kbd>Добавить</kbd>.</li>
+        </ol>
+      </details>
+    </section>
+  </div>
+
+  <div class="share">
+    Поделиться: <code id="link"></code>
+    <button class="btn" type="button" id="copy">Скопировать ссылку</button>
+  </div>
+
+  <p class="foot">Данные о заведениях: © участники OpenStreetMap. Нашли ошибку? Её можно исправить прямо из карточки заведения.</p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const ua = navigator.userAgent;
+const os = /android/i.test(ua) ? 'android'
+  : (/iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) ? 'ios'
+  : /windows/i.test(ua) ? 'windows' : null;
+if (os) {
+  const card = document.querySelector(`[data-os="${os}"]`);
+  card.classList.add('mine');
+  card.querySelector('h2').insertAdjacentHTML('beforeend', '<span class="pill">Ваше устройство</span>');
+  card.parentNode.prepend(card);
+  card.querySelector('details').open = true;
+}
+
+// «Установить без скачивания» — появляется, если браузер это поддерживает (Chrome, Edge)
+let deferred = null;
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferred = e;
+  document.querySelectorAll('[data-install]').forEach(b => b.hidden = false);
+});
+document.querySelectorAll('[data-install]').forEach(b => b.onclick = async () => {
+  if (!deferred) return;
+  deferred.prompt();
+  const { outcome } = await deferred.userChoice;
+  deferred = null;
+  document.querySelectorAll('[data-install]').forEach(x => x.hidden = true);
+  if (outcome === 'accepted') toast('Точка установлена');
+});
+
+const url = location.href.split('#')[0].split('?')[0];
+document.getElementById('link').textContent = url;
+document.getElementById('copy').onclick = () => {
+  const fb = () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('link'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Выделено — скопируйте вручную'); };
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Ссылка скопирована'), fb); else fb();
+};
+let tt; function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 1800); }
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

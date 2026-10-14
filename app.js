@@ -184,6 +184,15 @@ for (const [k, v] of Object.entries(CATS)) catChips.push(chip(v.name, v.color, f
 const sep = document.createElement('span'); sep.className = 'chip-sep'; chips.appendChild(sep);
 chip('Без сайта', null, false, b => { noSite = !noSite; b.setAttribute('aria-pressed', noSite); applyFilter(); }, 'nosite');
 
+// Ссылка на страницу загрузки — не показываем, если Точка уже открыта как установленное приложение
+const inApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.Capacitor ||
+  /Electron|; wv\)/.test(navigator.userAgent);
+if (!inApp) {
+  const a = document.createElement('a');
+  a.href = 'download.html'; a.className = 'chip dl'; a.textContent = 'Скачать приложение';
+  chips.appendChild(a);
+}
+
 /* ---------- список ---------- */
 function drawList() {
   const c = map.getCenter(), b = map.getBounds();

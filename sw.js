@@ -1,5 +1,5 @@
 // Кэширует оболочку приложения, чтобы оно быстро открывалось и ставилось на телефон.
-const CACHE = 'tochka-v1';
+const CACHE = 'tochka-v2';
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',

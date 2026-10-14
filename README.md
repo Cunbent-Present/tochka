@@ -42,3 +42,7 @@ APK собирается автоматически на GitHub (вкладка 
 https://github.com/Cunbent-Present/tochka/releases/latest/download/tochka.apk
 
 Приложение открывает сайт `cunbent-present.github.io/tochka`, поэтому все изменения сайта сразу видны и в APK — пересобирать его не нужно. Код обёртки лежит в папке `native/`.
+
+## Страница загрузки
+
+`download.html` — страница со ссылками на APK, установщик Windows и инструкцией для iPhone. Сама показывает первой карточку под устройство посетителя. Ссылка для людей: https://cunbent-present.github.io/tochka/download.html
