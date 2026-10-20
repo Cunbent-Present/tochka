@@ -1,0 +1,47 @@
+# Раз в неделю обновляет базу салонов (папка data/) из OpenStreetMap.
+# Запустить вручную: вкладка Actions → «Обновить базу салонов» → Run workflow.
+name: Обновить базу салонов
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * 1'   # понедельник, 05:17 по Москве
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_data.py'
+      - '.github/workflows/data.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Скачать салоны из OpenStreetMap
+        run: python scripts/build_data.py
+
+      - name: Сохранить в репозиторий
+        run: |
+          git config user.name "tochka-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Изменений нет"
+          else
+            git commit -m "База салонов: обновление $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

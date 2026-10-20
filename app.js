@@ -100,7 +100,7 @@ let saveTimer;
 function saveCache() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    let list = [...places.values()];
+    let list = [...places.values()].filter(p => !p.db && !p.mine);
     let cells = [...loadedCells];
     if (list.length > CACHE_MAX) { list = list.slice(-CACHE_MAX); cells = []; }
     if (!store.set(CACHE_KEY, { t: Date.now(), cells, places: list })) store.set(CACHE_KEY, null);
@@ -119,27 +119,66 @@ async function overpass(q) {
   throw lastErr;
 }
 
+/* ---------- своя база по городам (data/*.json, обновляется раз в неделю на GitHub) ---------- */
+const OSM_TYPES = { n: 'node', w: 'way', r: 'relation' };
+const dbCells = new Set();       // ячейки, которые уже покрыты базой — живой сервер для них не нужен
+const dbLoading = new Map();
+let dbIndex = [];
+const dbReady = fetch('data/index.json', { cache: 'no-cache' })
+  .then(r => r.ok ? r.json() : { cities: [] })
+  .then(d => { dbIndex = d.cities || []; })
+  .catch(() => { dbIndex = []; });
+function dbCityAt(lat, lon) { return dbIndex.find(c => c.count && lat >= c.s && lat <= c.n && lon >= c.w && lon <= c.e); }
+function loadCityDb(c) {
+  if (dbLoading.has(c.slug)) return dbLoading.get(c.slug);
+  const pr = fetch(`data/${c.slug}.json?v=${encodeURIComponent(c.updated || '')}`)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(rows => {
+      for (const [id, lat, lon, tags] of rows) {
+        const p = parseEl({ type: OSM_TYPES[id[0]] || 'node', id: id.slice(1), lat, lon, tags });
+        if (p && !places.has(p.id)) { p.db = true; places.set(p.id, p); }
+      }
+      for (let i = Math.ceil(c.s / CELL); i < Math.floor(c.n / CELL); i++)
+        for (let j = Math.ceil(c.w / CELL); j < Math.floor(c.e / CELL); j++) dbCells.add(i + ':' + j);
+      c.loadedOk = true;
+    })
+    .catch(() => { c.failedAt = Date.now(); dbLoading.delete(c.slug); });
+  dbLoading.set(c.slug, pr);
+  return pr;
+}
+
 let loading = false, pending = false;
 async function loadView() {
   if (loading) { pending = true; return; }
-  if (map.getZoom() < MIN_LOAD_ZOOM) { setStatus(visibleInView().length ? '' : 'Приблизьте карту, чтобы загрузить заведения'); return; }
-  // При наклоне карты видно далеко до горизонта — грузим только область вокруг центра
-  const b = map.getBounds(), c = map.getCenter();
-  const S = Math.max(b.getSouth(), c.lat - 0.1), N = Math.min(b.getNorth(), c.lat + 0.1);
-  const W = Math.max(b.getWest(), c.lng - 0.18), E = Math.min(b.getEast(), c.lng + 0.18);
-  const missing = [];
-  for (let i = Math.floor(S / CELL); i <= Math.floor(N / CELL); i++)
-    for (let j = Math.floor(W / CELL); j <= Math.floor(E / CELL); j++) {
-      const k = i + ':' + j;
-      if (!loadedCells.has(k)) missing.push([i, j, k]);
-    }
-  if (!missing.length) return;
-  const s = Math.min(...missing.map(m => m[0])) * CELL, n = (Math.max(...missing.map(m => m[0])) + 1) * CELL;
-  const w = Math.min(...missing.map(m => m[1])) * CELL, e = (Math.max(...missing.map(m => m[1])) + 1) * CELL;
-  const bb = `${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)}`;
-  const q = `[out:json][timeout:25];(nwr["shop"~"^(hairdresser|beauty|massage|tattoo)$"](${bb});nwr["amenity"~"^(spa|massage)$"](${bb});nwr["leisure"="spa"](${bb}););out center tags;`;
-  loading = true; setStatus('Загружаю заведения…');
+  loading = true;
   try {
+    await dbReady;
+    const c = map.getCenter();
+    // 1) город из своей базы — грузится одним файлом, мгновенно, даже на мелком масштабе
+    const city = map.getZoom() >= 9 ? dbCityAt(c.lat, c.lng) : null;
+    if (city && !city.loadedOk && !(city.failedAt > Date.now() - 60000)) {
+      setStatus(`Загружаю базу: ${city.name}…`);
+      await loadCityDb(city);
+      setStatus('');
+      if (city.loadedOk) applyFilter();
+    }
+    if (map.getZoom() < MIN_LOAD_ZOOM) { setStatus(visibleInView().length ? '' : 'Приблизьте карту, чтобы загрузить заведения'); return; }
+    // 2) всё, что вне базы, — живьём с сервера OpenStreetMap (только область вокруг центра)
+    const b = map.getBounds();
+    const S = Math.max(b.getSouth(), c.lat - 0.1), N = Math.min(b.getNorth(), c.lat + 0.1);
+    const W = Math.max(b.getWest(), c.lng - 0.18), E = Math.min(b.getEast(), c.lng + 0.18);
+    const missing = [];
+    for (let i = Math.floor(S / CELL); i <= Math.floor(N / CELL); i++)
+      for (let j = Math.floor(W / CELL); j <= Math.floor(E / CELL); j++) {
+        const k = i + ':' + j;
+        if (!loadedCells.has(k) && !dbCells.has(k)) missing.push([i, j, k]);
+      }
+    if (!missing.length) { setStatus(''); return; }
+    const s = Math.min(...missing.map(m => m[0])) * CELL, n = (Math.max(...missing.map(m => m[0])) + 1) * CELL;
+    const w = Math.min(...missing.map(m => m[1])) * CELL, e = (Math.max(...missing.map(m => m[1])) + 1) * CELL;
+    const bb = `${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)}`;
+    const q = `[out:json][timeout:25];(nwr["shop"~"^(hairdresser|beauty|massage|tattoo)$"](${bb});nwr["amenity"~"^(spa|massage)$"](${bb});nwr["leisure"="spa"](${bb}););out center tags;`;
+    setStatus('Загружаю заведения…');
     const data = await overpass(q);
     let added = 0;
     for (const el of data.elements || []) { const p = parseEl(el); if (p && !places.has(p.id)) { places.set(p.id, p); added++; } }
@@ -278,13 +317,15 @@ function pushData() { const s = map.getSource('places'); if (s) s.setData(geo(vi
 function markSelected() { if (map.getLayer('selected')) map.setFilter('selected', ['==', ['get', 'id'], sel || '']); }
 
 map.on('click', 'clusters', e => {
+  if (addMode) return;
   const f = e.features[0];
   map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id)
     .then(z => map.easeTo({ center: f.geometry.coordinates, zoom: z + 0.3 }))
     .catch(() => map.easeTo({ center: f.geometry.coordinates, zoom: map.getZoom() + 2 }));
 });
-map.on('click', 'points', e => select(e.features[0].properties.id));
+map.on('click', 'points', e => { if (!addMode) select(e.features[0].properties.id); });
 map.on('click', e => {
+  if (addMode) { openAddForm(e.lngLat); return; }
   const hit = map.queryRenderedFeatures(e.point, { layers: PIN_LAYERS.filter(l => map.getLayer(l)) });
   if (!hit.length) closeCard();
 });
@@ -379,12 +420,104 @@ function toggleFav(id) {
   if (favOnly) applyFilter(); else drawList();
 }
 
+/* ---------- потенциал клиента: насколько заведению нужен сайт ---------- */
+// Страницы соцсетей, онлайн-записи и справочников — это не собственный сайт
+const SOCIAL_HOSTS = /(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|m\.vk\.com|instagram\.com|t\.me|telegram\.me|taplink\.(cc|ws|at|ru)|wa\.me|ok\.ru|youtube\.com|tiktok\.com|facebook\.com|dikidi\.(net|ru|app)|yclients\.com|2gis\.ru|yandex\.ru|avito\.ru|linktr\.ee|zoon\.ru|flamp\.ru)$/i;
+function siteKind(p) {
+  if (!p.site) return 'none';
+  try {
+    const host = new URL(/^[a-z]+:\/\//i.test(p.site) ? p.site : 'https://' + p.site).hostname.replace(/^www\./, '');
+    return SOCIAL_HOSTS.test(host) ? 'social' : 'own';
+  } catch { return 'own'; }
+}
+const leadCache = new WeakMap();
+const LV = { high: 'высокий', mid: 'средний', low: 'низкий' };
+function lead(p) {
+  let l = leadCache.get(p);
+  if (l) return l;
+  const kind = siteKind(p), why = [];
+  let s = 0;
+  if (kind === 'none') { s += 55; why.push('нет сайта'); }
+  else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
+  else why.push('уже есть сайт');
+  const social = !!(p.tg || p.vk || p.inst || p.email || kind === 'social');
+  if (p.phone) { s += 15; why.push('есть телефон'); }
+  if (social) { s += 10; why.push('есть соцсети'); }
+  if (!p.hours) { s += 10; why.push('не указаны часы работы'); }
+  if (!p.addr) { s += 5; why.push('не указан адрес'); }
+  if (!p.phone && !social) { s = Math.min(s, 45); why.push('нет контактов — связаться сложно'); }
+  s = Math.min(100, s);
+  l = { score: s, level: s >= 70 ? 'high' : s >= 50 ? 'mid' : 'low', kind, why };
+  leadCache.set(p, l);
+  return l;
+}
+const lvPill = l => `<span class="lv lv-${l.level}" title="Потенциал клиента: ${l.score} из 100">${l.score}</span>`;
+
+/* ---------- свои заведения (видны только на этом устройстве) ---------- */
+const MINE_KEY = 'tochka-mine';
+let mine = store.get(MINE_KEY, {});
+for (const p of Object.values(mine)) places.set(p.id, p);
+let addMode = false, pickAt = null, editId = null, pickCity = '';
+function startAdd() {
+  addMode = true; closeCard(); $('#pick').hidden = false; $('#addp').setAttribute('aria-pressed', 'true');
+  map.getCanvas().style.cursor = 'crosshair'; $('#main').classList.remove('showlist'); $('#lt').textContent = 'Список';
+}
+function stopAdd() { addMode = false; $('#pick').hidden = true; $('#addp').setAttribute('aria-pressed', 'false'); map.getCanvas().style.cursor = ''; }
+$('#addp').onclick = () => addMode ? stopAdd() : startAdd();
+$('#pickx').onclick = stopAdd;
+$('#aCat').innerHTML = Object.entries(CATS).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
+function openAddForm(lngLat, p) {
+  stopAdd();
+  editId = p ? p.id : null;
+  pickAt = p ? { lat: p.lat, lon: p.lon } : { lat: lngLat.lat, lon: lngLat.lng };
+  pickCity = p ? (p.city || '') : '';
+  $('#asTitle').textContent = p ? 'Изменить заведение' : 'Новое заведение';
+  $('#aName').value = p?.name || ''; $('#aCat').value = p?.cat || 'beauty'; $('#aAddr').value = p?.addr || '';
+  $('#aPhone').value = p?.phone || ''; $('#aSite').value = p?.site || ''; $('#aTg').value = p?.tg || ''; $('#aVk').value = p?.vk || '';
+  $('#as').hidden = false;
+  setTimeout(() => $('#aName').focus(), 50);
+  if (!p) reverseFill(pickAt);
+}
+async function reverseFill({ lat, lon }) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ru&zoom=18&lat=${lat}&lon=${lon}`);
+    const a = (await r.json()).address || {};
+    const street = [a.road || a.pedestrian || a.footway || a.square, a.house_number].filter(Boolean).join(', ');
+    if (street && !$('#aAddr').value) $('#aAddr').value = street;
+    pickCity = a.city || a.town || a.village || '';
+  } catch { /* адрес можно ввести вручную */ }
+}
+function closeAdd() { $('#as').hidden = true; editId = null; }
+$('#asx').onclick = closeAdd;
+$('#as').addEventListener('click', e => { if (e.target.id === 'as') closeAdd(); });
+$('#af').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = id => $(id).value.trim();
+  if (!v('#aName')) { $('#aName').focus(); return; }
+  const id = editId || 'u' + Date.now();
+  const p = {
+    id, name: v('#aName'), cat: $('#aCat').value, lat: pickAt.lat, lon: pickAt.lon,
+    addr: v('#aAddr'), city: pickCity, phone: v('#aPhone'), site: v('#aSite'), email: '', hours: '',
+    tg: v('#aTg'), vk: v('#aVk'), inst: '', operator: '', mine: true
+  };
+  const wasEdit = !!editId;
+  mine[id] = p; store.set(MINE_KEY, mine); places.set(id, p);
+  if (favs[id]) { favs[id] = p; store.set(FAV_KEY, favs); }
+  closeAdd(); applyFilter(); select(id, true);
+  toast(wasEdit ? 'Изменения сохранены' : 'Заведение добавлено');
+});
+function deleteMine(id) {
+  delete mine[id]; store.set(MINE_KEY, mine);
+  if (favs[id]) { delete favs[id]; store.set(FAV_KEY, favs); }
+  places.delete(id); closeCard(); applyFilter(); toast('Заведение удалено');
+}
+
 /* ---------- фильтр и поиск ---------- */
 let cat = 'all', noSite = false, favOnly = false, sel = null, visible = [];
 function matches(p, q) {
   if (favOnly && !favs[p.id]) return false;
   if (cat !== 'all' && p.cat !== cat) return false;
-  if (noSite && p.site) return false;
+  if (noSite && siteKind(p) === 'own') return false;
   if (!q) return true;
   const c = CATS[p.cat];
   const hay = norm([p.name, p.addr, p.city, p.operator, c.name, ...c.syn].join(' ')).replace(/[,.]/g, ' ');
@@ -438,21 +571,28 @@ function visibleInView() {
   let b; try { b = map.getBounds(); } catch { return []; }
   return visible.filter(p => b.contains([p.lon, p.lat]));
 }
+let sortMode = store.get('tochka-sort', 'near');
 function drawList() {
   const c = map.getCenter(), cc = [c.lat, c.lng];
   const src = favOnly ? visible : visibleInView();
-  const inView = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]) })).sort((a, z) => a.d - z.d).slice(0, 150);
+  const inView = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]), s: lead(p).score }))
+    .sort(sortMode === 'lead' ? (a, z) => z.s - a.s || a.d - z.d : (a, z) => a.d - z.d).slice(0, 150);
   const dist = d => d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км';
   const L = $('#list');
-  L.innerHTML = `<div class="list-head"><b>${favOnly ? 'Избранное' : 'На экране'}: ${inView.length}</b><span class="small">загружено ${places.size}</span></div>` +
+  L.innerHTML = `<div class="list-head"><div><b>${favOnly ? 'Избранное' : 'На экране'}: ${inView.length}</b><div class="small">загружено ${places.size.toLocaleString('ru-RU')}</div></div>
+    <div class="seg" role="group" aria-label="Сортировка">
+      <button type="button" data-sort="near" aria-pressed="${sortMode === 'near'}">Ближе</button>
+      <button type="button" data-sort="lead" aria-pressed="${sortMode === 'lead'}" title="Сначала те, кому больше всего нужен сайт">Клиенты</button>
+    </div></div>` +
     (inView.length ? inView.map(({ p, d }) => `
       <button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
         <span class="bar" style="background:${CATS[p.cat].color}"></span>
         <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
         <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${dist(d)}</div>
-        ${p.site ? '' : '<div class="flag">Нет сайта</div>'}</span>
+        <div class="meta-line">${lvPill(lead(p))}${lead(p).kind === 'none' ? '<span class="flag">Нет сайта</span>' : lead(p).kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
       </button>`).join('')
     : `<div class="empty">${favOnly ? 'В избранном пока ничего нет. Откройте заведение и нажмите ☆ рядом с названием.' : map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.' : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.'}</div>`);
+  L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
   L.querySelectorAll('.item').forEach(b => b.onclick = () => { select(b.dataset.id, true); $('#main').classList.remove('showlist'); $('#lt').textContent = 'Список'; });
 }
 $('#lt').onclick = () => { const m = $('#main'); m.classList.toggle('showlist'); $('#lt').textContent = m.classList.contains('showlist') ? 'Карта' : 'Список'; };
@@ -488,6 +628,7 @@ function select(id, fly) {
     p.inst && `<a href="${esc(handle(p.inst, 'https://instagram.com/'))}" target="_blank" rel="noopener">Instagram</a>`
   ].filter(Boolean).join(' · ');
   const addr = [p.city, p.addr].filter(Boolean).join(', ');
+  const l = lead(p);
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>
@@ -498,22 +639,36 @@ function select(id, fly) {
       ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : '<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>')}
+      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}` : '<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>')}
+      ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}
       ${p.operator ? row('Компания', esc(p.operator)) : ''}
     </div>
     <div class="acts">
-      <button class="btn pri" type="button" id="tonote">В блокнот</button>
+      <button class="btn pri" type="button" id="write">Написать</button>
+      <button class="btn" type="button" id="tonote">В блокнот</button>
       <button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
     </div>
-    <div class="src">Источник: OpenStreetMap. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a></div>`;
+    ${p.mine ? `<div class="mine-bar"><span>Это место добавили вы. Его видно только на этом устройстве.</span>
+      <div class="mine-acts"><button class="mini" type="button" id="medit">Изменить</button><button class="mini" type="button" id="mdel">Удалить</button>
+      <a class="mini" href="https://www.openstreetmap.org/edit#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">Добавить на OpenStreetMap для всех</a></div></div>`
+    : `<div class="src">Источник: OpenStreetMap${p.db ? ' (база Точки)' : ''}. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a></div>`}`;
   $('#card').hidden = false;
   $('#cx').onclick = closeCard;
   $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
   // перезапуск «всплытия» карточки
   const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
+  $('#write').onclick = () => openMsg(p);
+  if (p.mine) {
+    $('#medit').onclick = () => openAddForm(null, p);
+    $('#mdel').onclick = e => {
+      const b = e.currentTarget;
+      if (b.dataset.sure) deleteMine(p.id);
+      else { b.dataset.sure = '1'; b.textContent = 'Точно удалить?'; b.classList.add('danger'); setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Удалить'; b.classList.remove('danger'); } }, 4000); }
+    };
+  }
   $('#tonote').onclick = () => { notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
   drawList();
 }
@@ -524,16 +679,16 @@ function closeCard() {
 
 /* ---------- копирование и тост ---------- */
 document.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (b) copy(b.dataset.copy); });
-function copy(t) {
+function copy(t, msg = 'Скопировано') {
   const fb = () => {
     const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0';
     document.body.appendChild(a); a.select();
-    try { document.execCommand('copy'); toast('Скопировано'); } catch { toast('Не удалось скопировать'); }
+    try { document.execCommand('copy'); toast(msg); } catch { toast('Не удалось скопировать'); }
     a.remove();
   };
-  if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Скопировано'), fb); else fb();
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast(msg), fb); else fb();
 }
-let tt; function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 1700); }
+let tt; function toast(m, ms = 1700) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), ms); }
 function setStatus(m) { const s = $('#status'); s.textContent = m; s.hidden = !m; }
 
 /* ---------- блокнот ---------- */
@@ -541,17 +696,29 @@ let notes = store.get(NOTES_KEY, []);
 let notePlace = null;    // заведение, из карточки которого открыли блокнот
 const STATUSES = [['new', 'Новый'], ['sent', 'Написал'], ['reply', 'Ответил'], ['deal', 'Договорились'], ['no', 'Отказ']];
 const stName = s => (STATUSES.find(x => x[0] === s) || STATUSES[0])[1];
+const DAY = 864e5;
+const dayAt = days => { const d = new Date(); d.setHours(10, 0, 0, 0); return d.getTime() + days * DAY; };
+const endOfToday = () => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); };
+const isDue = n => n.r && n.r <= endOfToday() && n.s !== 'deal' && n.s !== 'no';
+const fmtDay = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 const saveNotes = () => { if (!store.set(NOTES_KEY, notes)) toast('Не удалось сохранить: память браузера заполнена'); };
 function drawNotes() {
   $('#cnt').textContent = notes.length;
+  const due = notes.filter(isDue).length;
+  $('#due').textContent = due; $('#due').hidden = !due;
+  $('#fab').setAttribute('aria-label', due ? `Открыть блокнот: пора написать ${due}` : 'Открыть блокнот');
   $('#nl').innerHTML = notes.length ? notes.map(n => `
     <div class="note"><div class="nt-top">
       <button class="st st-${n.s || 'new'}" type="button" data-st="${n.d}" title="Нажмите, чтобы сменить статус">${stName(n.s)}</button>
       <span class="small">${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+      ${n.r ? `<div class="remline${isDue(n) ? ' due' : ''}">⏰ ${isDue(n) ? 'Пора написать · ' : 'Напомнить '}${fmtDay(n.r)}</div>` : ''}
       <p>${esc(n.t)}</p>
       <div class="nf">
       ${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : '<span></span>'}
-      <div><button class="mini" type="button" data-copy="${esc(n.t)}">Копировать</button>
+      <div><select class="mini rem" data-rem="${n.d}" aria-label="Напоминание">
+        <option value="">⏰ Напомнить</option><option value="1">Завтра</option><option value="3">Через 3 дня</option><option value="7">Через неделю</option>${n.r ? '<option value="0">Убрать</option>' : ''}
+      </select>
+      <button class="mini" type="button" data-copy="${esc(n.t)}">Копировать</button>
       <button class="mini" type="button" data-del="${n.d}">Удалить</button></div></div></div>`).join('')
     : '<div class="hint">Пока пусто. Записывайте сюда телефоны, имена и кому написать. Или откройте заведение на карте и нажмите «В блокнот» — контакты подставятся сами.</div>';
   $('#nl').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
@@ -560,7 +727,15 @@ function drawNotes() {
   $('#nl').querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +b.dataset.st); if (!n) return;
     const i = STATUSES.findIndex(x => x[0] === (n.s || 'new'));
-    n.s = STATUSES[(i + 1) % STATUSES.length][0]; saveNotes(); drawNotes();
+    n.s = STATUSES[(i + 1) % STATUSES.length][0];
+    if (n.s === 'deal' || n.s === 'no') delete n.r;
+    saveNotes(); drawNotes();
+  });
+  $('#nl').querySelectorAll('[data-rem]').forEach(sel => sel.onchange = () => {
+    const n = notes.find(x => x.d === +sel.dataset.rem); if (!n || sel.value === '') return;
+    if (sel.value === '0') { delete n.r; toast('Напоминание убрано'); }
+    else { n.r = dayAt(+sel.value); toast('Напомню ' + fmtDay(n.r)); }
+    saveNotes(); drawNotes();
   });
   $('#nl').querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +b.dataset.go); if (!n) return;
@@ -578,16 +753,138 @@ $('#nf').addEventListener('submit', e => {
   notes.unshift(n); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
 });
 $('#copyall').onclick = () => notes.length ? copy(notes.map(n => n.t).join('\n\n———\n\n')) : toast('Блокнот пуст');
+// Экспорт в таблицу: CSV для Excel (с BOM и «;», чтобы русский Excel открыл без кракозябр)
+$('#export').onclick = () => {
+  if (!notes.length) return toast('Блокнот пуст');
+  const head = ['Дата', 'Статус', 'Заведение', 'Категория', 'Телефон', 'Адрес', 'Сайт', 'Потенциал', 'Напомнить', 'Заметка'];
+  const rows = notes.map(n => {
+    const p = n.place || {};
+    return [new Date(n.d).toLocaleString('ru-RU'), stName(n.s), p.name || '', p.cat ? CATS[p.cat].name : '', p.phone || '',
+      [p.city, p.addr].filter(Boolean).join(', '), p.site || '', p.name ? lead(p).score : '', n.r ? fmtDay(n.r) : '', n.t];
+  });
+  // В Android-приложении скачивание файлов не работает — копируем таблицу для вставки
+  if (window.Capacitor) {
+    copy([head, ...rows].map(r => r.map(v => String(v).replace(/[\t\r\n]+/g, ' / ')).join('\t')).join('\n'),
+      'Таблица скопирована — вставьте её в Excel или Google Таблицы');
+    return;
+  }
+  const csv = '\ufeff' + [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `tochka-bloknot-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  toast('Файл сохранён в «Загрузки» — откройте его в Excel', 2600);
+};
+/* ---------- «Написать»: шаблоны сообщений ---------- */
+const TPL_KEY = 'tochka-tpl', SIGN_KEY = 'tochka-sign';
+const DEFAULT_TPL = [
+  { n: 'Знакомство', t: 'Здравствуйте! Смотрю «{название}» на карте и вижу, что {про_сайт}. Я делаю сайты для салонов и барбершопов: с ценами, мастерами и онлайн-записью. Могу бесплатно показать, как мог бы выглядеть ваш сайт. Интересно?{подпись}' },
+  { n: 'Коротко', t: 'Добрый день! Делаю сайты для салонов и барбершопов. Для «{название}» могу сделать простой сайт с онлайн-записью примерно за неделю. Показать примеры работ?{подпись}' },
+  { n: 'Повторно', t: 'Здравствуйте! Пишу ещё раз насчёт сайта для «{название}». Если тема актуальна — покажу примеры и отвечу на вопросы. Если нет, просто напишите, больше не побеспокою.{подпись}' }
+];
+let tpls = store.get(TPL_KEY, null) || DEFAULT_TPL.map(x => ({ ...x }));
+let sign = store.get(SIGN_KEY, '');
+let msgPlace = null, tplIdx = 0, logged = false;
+const ABOUT_SITE = {
+  none: 'у вас пока нет своего сайта',
+  social: 'вас можно найти только через соцсети или онлайн-запись, а своего сайта нет',
+  own: 'у вас уже есть сайт — могу сделать его современнее и удобнее для записи'
+};
+function nearestCity(lat, lon) {
+  let best = '', bd = Infinity;
+  for (const [n, la, lo] of CITIES) { const d = distM([lat, lon], [la, lo]); if (d < bd) { bd = d; best = n; } }
+  return bd < 60000 ? best : '';
+}
+function fillTpl(t, p) {
+  return t.replace(/\{название\}/g, p.name)
+    .replace(/\{категория\}/g, CATS[p.cat].name.toLowerCase())
+    .replace(/\{город\}/g, p.city || nearestCity(p.lat, p.lon))
+    .replace(/\{про_сайт\}/g, ABOUT_SITE[siteKind(p)])
+    .replace(/\{подпись\}/g, sign.trim() ? '\n\n' + sign.trim() : '');
+}
+const waNumber = ph => {
+  let d = String(ph).split(/[;,]/)[0].replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
+  if (d.length === 10) d = '7' + d;
+  return d.length >= 11 ? d : '';
+};
+function openMsg(p) {
+  msgPlace = p; logged = false;
+  const exists = notes.find(n => n.pid === p.id && n.s && n.s !== 'new');
+  tplIdx = exists && tpls.length > 2 ? 2 : 0;   // уже писали — предлагаем «Повторно»
+  $('#msTitle').textContent = 'Написать: ' + p.name;
+  $('#msSend').hidden = false; $('#msTpl').hidden = true;
+  drawMsg();
+  $('#ms').hidden = false;
+}
+function drawMsg() {
+  const p = msgPlace; if (!p) return;
+  if (!tpls.length) tpls = DEFAULT_TPL.map(x => ({ ...x }));
+  tplIdx = Math.min(tplIdx, tpls.length - 1);
+  $('#tplChips').innerHTML = tpls.map((x, i) => `<button type="button" class="chip" data-tpl="${i}" aria-pressed="${i === tplIdx}">${esc(x.n || 'Шаблон ' + (i + 1))}</button>`).join('');
+  $('#tplChips').querySelectorAll('[data-tpl]').forEach(b => b.onclick = () => { tplIdx = +b.dataset.tpl; drawMsg(); });
+  $('#msText').value = fillTpl(tpls[tplIdx].t, p);
+  const wa = p.phone && waNumber(p.phone);
+  const acts = [`<button class="btn pri" type="button" data-act="copy">Скопировать текст</button>`];
+  if (p.tg) acts.push(`<a class="btn" data-act="open" href="${esc(handle(p.tg, 'https://t.me/'))}" target="_blank" rel="noopener">Telegram</a>`);
+  if (wa) acts.push(`<a class="btn" data-act="wa" href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>`);
+  if (p.vk) acts.push(`<a class="btn" data-act="open" href="${esc(handle(p.vk, 'https://vk.com/'))}" target="_blank" rel="noopener">VK</a>`);
+  if (siteKind(p) === 'social') acts.push(`<a class="btn" data-act="open" href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">Их страница</a>`);
+  if (p.email) acts.push(`<a class="btn" data-act="mail" href="mailto:${esc(p.email)}">Email</a>`);
+  if (p.phone) acts.push(`<a class="btn" data-act="call" href="tel:${esc(String(p.phone).split(/[;,]/)[0].replace(/[^\d+]/g, ''))}">Позвонить</a>`);
+  $('#msActs').innerHTML = acts.join('');
+  $('#msActs').querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const text = $('#msText').value;
+    const act = b.dataset.act;
+    if (act === 'wa') b.href = `https://wa.me/${wa}?text=${encodeURIComponent(text)}`;
+    if (act === 'mail') b.href = `mailto:${p.email}?subject=${encodeURIComponent('Сайт для ' + p.name)}&body=${encodeURIComponent(text)}`;
+    if (act === 'copy' || act === 'open') copy(text, act === 'open' ? 'Текст скопирован — вставьте его в чат' : 'Текст скопирован');
+    if (act !== 'call') logContact(p);
+  });
+}
+function logContact(p) {
+  if (logged || !$('#msNote').checked) return;
+  logged = true;
+  let n = notes.find(x => x.pid === p.id);
+  if (!n) { n = { t: contactText(p), d: Date.now(), s: 'sent', pid: p.id, lat: p.lat, lon: p.lon, place: p }; notes.unshift(n); }
+  else if (!n.s || n.s === 'new') n.s = 'sent';
+  if ($('#msRemind').checked) n.r = dayAt(3);
+  saveNotes(); drawNotes();
+}
+function closeMsg() { $('#ms').hidden = true; msgPlace = null; }
+$('#msx').onclick = closeMsg;
+$('#ms').addEventListener('click', e => { if (e.target.id === 'ms') closeMsg(); });
+// редактор своих шаблонов
+function drawTplEditor() {
+  $('#sign').value = sign;
+  $('#tplList').innerHTML = tpls.map((x, i) => `
+    <div class="tpl-ed">
+      <div class="tpl-row"><input class="tpl-n" data-i="${i}" value="${esc(x.n)}" placeholder="Название шаблона" aria-label="Название шаблона">
+      <button class="mini" type="button" data-tdel="${i}" ${tpls.length < 2 ? 'disabled' : ''}>Удалить</button></div>
+      <textarea class="tpl-t" data-i="${i}" rows="4" aria-label="Текст шаблона">${esc(x.t)}</textarea>
+    </div>`).join('');
+  $('#tplList').querySelectorAll('.tpl-n').forEach(el => el.oninput = () => { tpls[+el.dataset.i].n = el.value; store.set(TPL_KEY, tpls); });
+  $('#tplList').querySelectorAll('.tpl-t').forEach(el => el.oninput = () => { tpls[+el.dataset.i].t = el.value; store.set(TPL_KEY, tpls); });
+  $('#tplList').querySelectorAll('[data-tdel]').forEach(b => b.onclick = () => { tpls.splice(+b.dataset.tdel, 1); store.set(TPL_KEY, tpls); drawTplEditor(); });
+}
+$('#sign').oninput = () => { sign = $('#sign').value; store.set(SIGN_KEY, sign); };
+$('#msEdit').onclick = () => { $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); };
+$('#tplAdd').onclick = () => { tpls.push({ n: 'Мой шаблон', t: 'Здравствуйте! ' }); store.set(TPL_KEY, tpls); drawTplEditor(); };
+$('#tplReset').onclick = () => { tpls = DEFAULT_TPL.map(x => ({ ...x })); store.set(TPL_KEY, tpls); drawTplEditor(); toast('Стандартные шаблоны возвращены'); };
+$('#tplDone').onclick = () => { $('#msTpl').hidden = true; $('#msSend').hidden = false; drawMsg(); };
+
 function openNotes() { $('#np').classList.add('on'); }
 $('#fab').onclick = () => { const on = $('#np').classList.toggle('on'); if (on) $('#nt').focus(); };
 $('#npx').onclick = () => { $('#np').classList.remove('on'); if (!$('#nt').value.trim()) notePlace = null; };
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { $('#np').classList.remove('on'); closeSheet(); }
+  if (e.key === 'Escape') { $('#np').classList.remove('on'); closeSheet(); closeMsg(); closeAdd(); stopAdd(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); $('#q').focus(); }
 });
 
 /* ---------- старт ---------- */
 drawNotes();
+{ const due = notes.filter(isDue).length; if (due) setTimeout(() => toast(`Пора написать: ${due}. Откройте блокнот`, 3200), 1500); }
 visible = [...places.values()];
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

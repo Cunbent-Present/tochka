@@ -49,9 +49,16 @@
         <button id="zin" type="button" aria-label="Приблизить">+</button>
         <button id="zout" type="button" aria-label="Отдалить">−</button>
         <button id="tilt" type="button" aria-label="Переключить 3D" class="tilt">2D</button>
+        <button id="addp" type="button" aria-label="Добавить заведение" aria-pressed="false" title="Добавить заведение, которого нет на карте">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><path d="M12 7v6M9 10h6"/></svg>
+        </button>
         <button id="loc" type="button" aria-label="Где я">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
         </button>
+      </div>
+      <div class="pickbar" id="pick" hidden>
+        <span>Нажмите на карте, где находится заведение</span>
+        <button class="mini" id="pickx" type="button">Отмена</button>
       </div>
       <article class="card" id="card" hidden></article>
     </div>
@@ -68,9 +75,51 @@
   </div>
 </div>
 
+<div class="sheet" id="ms" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="msTitle">
+    <div class="sheet-h"><h3 id="msTitle">Написать</h3><button class="x" id="msx" type="button" aria-label="Закрыть">×</button></div>
+    <div id="msSend" class="ms-body">
+      <div class="tpl-chips" id="tplChips"></div>
+      <textarea id="msText" rows="7" aria-label="Текст сообщения"></textarea>
+      <div class="ms-opts">
+        <label><input type="checkbox" id="msNote" checked> Записать в блокнот как «Написал»</label>
+        <label><input type="checkbox" id="msRemind" checked> Напомнить через 3 дня</label>
+      </div>
+      <div class="ms-acts" id="msActs"></div>
+      <p class="small legal">Пишите каждому лично и по делу. Массовые рекламные рассылки без согласия получателя нарушают закон «О рекламе».</p>
+      <button class="linkbtn" id="msEdit" type="button">Мои шаблоны и подпись</button>
+    </div>
+    <div id="msTpl" class="ms-body" hidden>
+      <label class="fld">Подпись в конце сообщения<input id="sign" type="text" placeholder="Например: Иван, делаю сайты · @username" autocomplete="off"></label>
+      <p class="small">Подставляется автоматически: <code>{название}</code> <code>{категория}</code> <code>{город}</code> <code>{про_сайт}</code> <code>{подпись}</code></p>
+      <div id="tplList"></div>
+      <div class="ms-acts"><button class="btn" id="tplAdd" type="button">+ Новый шаблон</button><button class="btn" id="tplReset" type="button">Вернуть стандартные</button><button class="btn pri" id="tplDone" type="button">Готово</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="as" hidden>
+  <form class="sheet-card" id="af" role="dialog" aria-labelledby="asTitle" novalidate>
+    <div class="sheet-h"><h3 id="asTitle">Новое заведение</h3><button class="x" id="asx" type="button" aria-label="Закрыть">×</button></div>
+    <label class="fld">Название<input id="aName" type="text" maxlength="120" autocomplete="off" required></label>
+    <label class="fld">Категория<select id="aCat"></select></label>
+    <label class="fld">Адрес<input id="aAddr" type="text" placeholder="Улица, дом" autocomplete="off"></label>
+    <div class="two">
+      <label class="fld">Телефон<input id="aPhone" type="tel" placeholder="+7 …" autocomplete="off"></label>
+      <label class="fld">Сайт<input id="aSite" type="text" placeholder="Если есть" autocomplete="off"></label>
+    </div>
+    <div class="two">
+      <label class="fld">Telegram<input id="aTg" type="text" placeholder="@username" autocomplete="off"></label>
+      <label class="fld">VK<input id="aVk" type="text" placeholder="vk.com/…" autocomplete="off"></label>
+    </div>
+    <p class="small">Место сохранится только на этом устройстве. Чтобы его видели все, потом можно добавить его на OpenStreetMap — ссылка будет в карточке.</p>
+    <div class="ms-acts"><button class="btn pri" type="submit">Сохранить</button></div>
+  </form>
+</div>
+
 <button class="fab" id="fab" type="button" aria-label="Открыть блокнот">
   <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
-  <span class="lbl">Блокнот</span><span class="n" id="cnt">0</span>
+  <span class="lbl">Блокнот</span><span class="n" id="cnt">0</span><span class="due-dot" id="due" hidden>0</span>
 </button>
 
 <aside class="note-panel" id="np" aria-label="Блокнот">
@@ -78,7 +127,8 @@
   <form class="np-form" id="nf">
     <textarea id="nt" placeholder="Имя, телефон, кому написать и о чём…"></textarea>
     <div class="np-row">
-      <button class="btn" type="button" id="copyall">Скопировать все</button>
+      <div class="np-tools"><button class="btn" type="button" id="export">Экспорт в Excel</button>
+      <button class="btn" type="button" id="copyall">Скопировать все</button></div>
       <button class="btn pri" type="submit">Сохранить</button>
     </div>
   </form>
