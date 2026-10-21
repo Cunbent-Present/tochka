@@ -468,7 +468,10 @@ const isFav = id => !!favs[id];
 function toggleFav(id) {
   const p = places.get(id); if (!p) return;
   if (favs[id]) { delete favs[id]; toast('Убрано из избранного'); }
-  else { favs[id] = p; toast('Добавлено в избранное'); }
+  else {
+    if (!isPro() && Object.keys(favs).length >= PRO.limits.favs) { openPro('favs'); return; }
+    favs[id] = p; toast('Добавлено в избранное');
+  }
   store.set(FAV_KEY, favs);
   if (favOnly) applyFilter(); else drawList();
 }
@@ -565,6 +568,113 @@ function deleteMine(id) {
   places.delete(id); closeCard(); applyFilter(); toast('Заведение удалено');
 }
 
+/* ---------- Точка Pro: тарифы, ключи, лимиты бесплатной версии ----------
+   Покупка: кнопка открывает Telegram продавца, текст заказа копируется сам.
+   После оплаты продавец выдаёт ключ (scripts вне репозитория: make_key.py) — ключ подписан,
+   приложение проверяет подпись открытым ключом ниже. Подделать ключ без «печати» продавца нельзя. */
+const PRO = {
+  tg: 'cunbent',                                  // кому писать для покупки (Telegram)
+  limits: { notes: 15, favs: 10 },                // бесплатная версия
+  plans: [
+    { id: 'month', name: 'Месяц', price: 290, per: '₽ в месяц' },
+    { id: 'year', name: 'Год', price: 1990, per: '₽ в год', note: 'выгоднее на 43%', best: true },
+    { id: 'life', name: 'Навсегда', price: 990, per: '₽ один раз', note: 'ранний доступ — для первых покупателей' }
+  ],
+  jwk: {"kty": "EC", "crv": "P-256", "x": "8GgKNR9tMe_lA1Rsqf632_gEvm19Evr5M3DrBgjg6zo", "y": "U5gQi5M_2IuxhhM1dn-j2gSoulRl3ibyh8IfTucLvIY"}
+};
+const PRO_KEY = 'tochka-pro', ORDER_KEY = 'tochka-order';
+const PLAN_NAMES = { m: 'Месяц', y: 'Год', l: 'Навсегда' };
+let pro = null;                                    // { plan, exp: Date|null, expired }
+const isPro = () => !!(pro && !pro.expired);
+const orderId = (() => { let o = store.get(ORDER_KEY, ''); if (!o) { o = 'T-' + Math.random().toString(36).slice(2, 8).toUpperCase(); store.set(ORDER_KEY, o); } return o; })();
+function b64u(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '=';
+  const bin = atob(str), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function verifyProKey(raw) {
+  try {
+    const k = String(raw || '').replace(/\s+/g, '');
+    if (!k.startsWith('TOCHKA-PRO-')) return null;
+    const bytes = b64u(k.slice(11));
+    if (bytes.length !== 71 || bytes[0] !== 1) return null;
+    const payload = bytes.slice(0, 7), sig = bytes.slice(7);
+    const pub = await crypto.subtle.importKey('jwk', PRO.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)) return null;
+    const plan = String.fromCharCode(payload[1]), days = (payload[2] << 8) | payload[3];
+    if (!PLAN_NAMES[plan]) return null;
+    const exp = days === 0xFFFF ? null : new Date(2026, 0, 1 + days, 23, 59, 59);
+    return { plan, exp, expired: !!exp && exp.getTime() < Date.now() };
+  } catch { return null; }
+}
+const proUntil = p => p.exp ? 'до ' + p.exp.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : 'без срока';
+// true — если действие только для Pro и надо показать экран покупки
+function needPro(reason) { if (isPro()) return false; openPro(reason); return true; }
+const PRO_WHY = {
+  notes: `В бесплатной версии — до ${PRO.limits.notes} заметок. С Pro блокнот без ограничений.`,
+  favs: `В бесплатной версии — до ${PRO.limits.favs} мест в избранном.`,
+  sort: 'Сортировка «Лучшие клиенты» показывает первыми тех, кому сильнее всего нужен сайт.',
+  stats: 'Воронка и статистика показывают, сколько вам ответили и где теряются клиенты.',
+  tpl: 'Свои шаблоны и подпись — пишите клиентам своими словами в один клик.',
+  export: 'Выгрузка всех клиентов и заметок в Excel.',
+  menu: ''
+};
+let proPlan = 'year';
+function openPro(reason = 'menu') {
+  $('#proWhy').textContent = PRO_WHY[reason] || '';
+  $('#proWhy').hidden = !PRO_WHY[reason];
+  drawPro();
+  $('#pro').hidden = false;
+}
+function closePro() { $('#pro').hidden = true; }
+function orderText() {
+  const pl = PRO.plans.find(x => x.id === proPlan);
+  return `Здравствуйте! Хочу купить Точку Pro — тариф «${pl.name}» (${pl.price.toLocaleString('ru-RU')} ${pl.per}). Заказ ${orderId}.`;
+}
+function drawPro() {
+  const active = isPro();
+  $('#proActive').hidden = !active;
+  $('#proSell').hidden = active;
+  if (active) $('#proActiveText').textContent = `Pro активен · ${PLAN_NAMES[pro.plan]}, ${proUntil(pro)}`;
+  if (pro && pro.expired) { $('#proWhy').hidden = false; $('#proWhy').textContent = `Срок Pro закончился ${pro.exp.toLocaleDateString('ru-RU')}. Продлите, чтобы снова пользоваться всеми функциями.`; }
+  $('#plans').innerHTML = PRO.plans.map(pl => `<button type="button" class="plan${pl.best ? ' best' : ''}" data-plan="${pl.id}" aria-pressed="${pl.id === proPlan}">
+      ${pl.best ? '<span class="plan-tag">Выгодно</span>' : ''}<b>${pl.name}</b><span class="price">${pl.price.toLocaleString('ru-RU')}</span><span class="per">${pl.per}</span>${pl.note ? `<small>${pl.note}</small>` : ''}
+    </button>`).join('');
+  $('#plans').querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { proPlan = b.dataset.plan; drawPro(); });
+  $('#proBuy').href = `https://t.me/${PRO.tg}`;
+  $('#proOrder').textContent = orderText();
+  $('#proTg').textContent = '@' + PRO.tg;
+}
+$('#proBuy').addEventListener('click', () => copy(orderText(), 'Текст заказа скопирован — вставьте его в чат'));
+$('#prox').onclick = closePro;
+$('#pro').addEventListener('click', e => { if (e.target.id === 'pro') closePro(); });
+$('#proActivate').onclick = async () => {
+  const v = $('#proKey').value;
+  const msg = $('#proMsg');
+  if (!v.trim()) { $('#proKey').focus(); return; }
+  if (!(window.crypto && crypto.subtle)) { msg.textContent = 'Проверка ключа работает только по защищённому адресу. Откройте Точку по ссылке https://cunbent-present.github.io/tochka/'; return; }
+  msg.textContent = 'Проверяю…';
+  const res = await verifyProKey(v);
+  if (!res) { msg.textContent = 'Ключ не подошёл. Проверьте, что скопировали его целиком, начиная с TOCHKA-PRO-.'; return; }
+  if (res.expired) { msg.textContent = `Этот ключ закончился ${res.exp.toLocaleDateString('ru-RU')}.`; return; }
+  pro = res; store.set(PRO_KEY, v.replace(/\s+/g, ''));
+  msg.textContent = ''; $('#proKey').value = '';
+  applyPro(); drawPro();
+  toast('Точка Pro включена. Спасибо!', 2600);
+};
+$('#proReset').onclick = () => { $('#proActive').hidden = true; $('#proSell').hidden = false; $('#keybox').open = true; $('#proKey').focus(); };
+// Pro меняет вид: значок у логотипа, статистика без замка
+function applyPro() {
+  document.documentElement.classList.toggle('is-pro', isPro());
+  if (current === 'v-crm') renderCrm();
+  if (current === 'v-prof') renderProfile();
+}
+(async () => {
+  const saved = store.get(PRO_KEY, '');
+  if (saved) { pro = await verifyProKey(saved); applyPro(); if (pro && pro.expired) toast('Срок Точки Pro закончился — продлите в «Профиле»', 3200); }
+})();
+
 /* ---------- фильтр и поиск ---------- */
 let cat = 'all', noSite = false, favOnly = false, sel = null, visible = [];
 function matches(p, q) {
@@ -647,6 +757,7 @@ function emptyText() {
 function drawList() {
   const c = map.getCenter(), cc = [c.lat, c.lng];
   const src = favOnly ? visible : visibleInView();
+  if (sortMode === 'lead' && !isPro()) sortMode = 'near';
   const rows = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]), s: lead(p).score }))
     .sort(sortMode === 'lead' ? (a, z) => z.s - a.s || a.d - z.d : (a, z) => a.d - z.d).slice(0, 150);
   if (current === 'v-list') {
@@ -656,7 +767,7 @@ function drawList() {
         <button type="button" data-sort="near" aria-pressed="${sortMode === 'near'}">Ближе</button>
         <button type="button" data-sort="lead" aria-pressed="${sortMode === 'lead'}" title="Сначала те, кому больше всего нужен сайт">Лучшие клиенты</button>
       </div></div>` + (rows.length ? rows.map(itemHtml).join('') : `<div class="empty">${emptyText()}</div>`);
-    L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
+    L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (b.dataset.sort === 'lead' && needPro('sort')) return; sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
     bindItems(L);
   }
   if (!sel) drawNear(rows);
@@ -898,6 +1009,7 @@ function drawNotes() {
 $('#nf').addEventListener('submit', e => {
   e.preventDefault();
   const t = $('#nt').value.trim(); if (!t) { $('#nt').focus(); return; }
+  if (!isPro() && notes.length >= PRO.limits.notes) { openPro('notes'); return; }
   const n = { t, d: Date.now(), s: 'new' };
   if (notePlace) { n.pid = notePlace.id; n.lat = notePlace.lat; n.lon = notePlace.lon; n.place = notePlace; notePlace = null; }
   notes.unshift(n); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
@@ -905,6 +1017,7 @@ $('#nf').addEventListener('submit', e => {
 $('#copyall').onclick = () => notes.length ? copy(notes.map(n => n.t).join('\n\n———\n\n')) : toast('Блокнот пуст');
 // Экспорт в таблицу: CSV для Excel (с BOM и «;», чтобы русский Excel открыл без кракозябр)
 $('#export').onclick = () => {
+  if (needPro('export')) return;
   if (!notes.length) return toast('Блокнот пуст');
   const head = ['Дата', 'Статус', 'Заведение', 'Категория', 'Телефон', 'Адрес', 'Сайт', 'Потенциал', 'Напомнить', 'Заметка'];
   const rows = notes.map(n => {
@@ -997,7 +1110,10 @@ function logContact(p) {
   if (logged || !$('#msNote').checked) return;
   logged = true;
   let n = notes.find(x => x.pid === p.id);
-  if (!n) { n = { t: contactText(p), d: Date.now(), s: 'sent', pid: p.id, lat: p.lat, lon: p.lon, place: p }; notes.unshift(n); }
+  if (!n) {
+    if (!isPro() && notes.length >= PRO.limits.notes) { toast(`Не записано в блокнот: в бесплатной версии до ${PRO.limits.notes} заметок`, 2800); return; }
+    n = { t: contactText(p), d: Date.now(), s: 'sent', pid: p.id, lat: p.lat, lon: p.lon, place: p }; notes.unshift(n);
+  }
   else if (!n.s || n.s === 'new') n.s = 'sent';
   n.sentAt = Date.now();
   if ($('#msRemind').checked) n.r = dayAt(3);
@@ -1020,7 +1136,7 @@ function drawTplEditor() {
   $('#tplList').querySelectorAll('[data-tdel]').forEach(b => b.onclick = () => { tpls.splice(+b.dataset.tdel, 1); store.set(TPL_KEY, tpls); drawTplEditor(); });
 }
 $('#sign').oninput = () => { sign = $('#sign').value; store.set(SIGN_KEY, sign); };
-$('#msEdit').onclick = () => { $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); };
+$('#msEdit').onclick = () => { if (needPro('tpl')) return; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); };
 $('#tplAdd').onclick = () => { tpls.push({ n: 'Мой шаблон', t: 'Здравствуйте! ' }); store.set(TPL_KEY, tpls); drawTplEditor(); };
 $('#tplReset').onclick = () => { tpls = DEFAULT_TPL.map(x => ({ ...x })); store.set(TPL_KEY, tpls); drawTplEditor(); toast('Стандартные шаблоны возвращены'); };
 $('#tplDone').onclick = () => { if (!msgPlace) { closeMsg(); renderProfile(); return; } $('#msTpl').hidden = true; $('#msSend').hidden = false; drawMsg(); };
@@ -1039,6 +1155,11 @@ function renderCrm() {
   const max = Math.max(1, ...STATUSES.map(([k]) => cnt(k)));
   $('#funnel').innerHTML = STATUSES.map(([k, l]) => `<div class="fr"><span>${l}</span><div class="track"><div class="fill" style="width:${cnt(k) / max * 100}%;background:${BAR[k]}"></div></div><b>${cnt(k)}</b></div>`).join('');
   $('#conv').textContent = contacted ? `ответили ${Math.round(answered / contacted * 100)}%` : '';
+  const sec = document.querySelector('.sec-funnel');
+  sec.classList.toggle('locked', !isPro());
+  if (!isPro() && !sec.querySelector('.lockcta')) {
+    sec.insertAdjacentHTML('beforeend', `<div class="lockcta"><b>Воронка и статистика — в Pro</b><span>Сколько вам ответили, кто договорился и сколько сообщений за неделю</span><button class="btn pri" type="button" data-pro="stats">Открыть Pro</button></div>`);
+  }
   // кому написать сегодня
   const due = notes.filter(isDue).sort((a, b) => a.r - b.r);
   $('#todoN').textContent = due.length || '';
@@ -1075,6 +1196,8 @@ function renderCrm() {
 /* ---------- профиль ---------- */
 const REM_KEY = 'tochka-remind';
 function renderProfile() {
+  $('#pProSub').textContent = isPro() ? `Активен · ${PLAN_NAMES[pro.plan]}, ${proUntil(pro)}` : pro && pro.expired ? 'Срок закончился — продлите' : `Бесплатная версия · от ${PRO.plans[0].price} ₽ в месяц`;
+  $('#pNotesSub').textContent = isPro() ? 'Без ограничений' : `${notes.length} из ${PRO.limits.notes} заметок · ${Object.keys(favs).length} из ${PRO.limits.favs} в избранном`;
   document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
   $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);
   $('#swRem').setAttribute('aria-checked', store.get(REM_KEY, true));
@@ -1084,10 +1207,12 @@ function renderProfile() {
 document.querySelectorAll('#theme [data-t]').forEach(b => b.onclick = () => setTheme(b.dataset.t));
 $('#sw3d').onclick = () => { $('#tilt').click(); setTimeout(renderProfile, 950); $('#sw3d').setAttribute('aria-checked', !(map.getPitch() > 5)); };
 $('#swRem').onclick = () => { const on = !store.get(REM_KEY, true); store.set(REM_KEY, on); $('#swRem').setAttribute('aria-checked', on); toast(on ? 'Напоминания включены' : 'Напоминания выключены'); };
-$('#pTpl').onclick = () => { msgPlace = null; $('#msTitle').textContent = 'Мои шаблоны и подпись'; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); $('#ms').hidden = false; };
+$('#pTpl').onclick = () => { if (needPro('tpl')) return; msgPlace = null; $('#msTitle').textContent = 'Мои шаблоны и подпись'; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); $('#ms').hidden = false; };
 $('#pExport').onclick = () => $('#export').click();
+$('#pPro').onclick = () => openPro('menu');
+document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b) openPro(b.dataset.pro); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); }
+  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });

@@ -23,7 +23,7 @@
   <!-- вкладки: снизу на телефоне, слева на ПК -->
   <nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы">
     <span class="tabpill" id="tabpill"></span>
-    <div class="rail-brand"><i></i>Точка</div>
+    <div class="rail-brand"><i></i>Точка<span class="pro-mark sm">PRO</span></div>
     <button class="tab" role="tab" aria-selected="true" data-v="v-map" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Карта</button>
     <button class="tab" role="tab" aria-selected="false" data-v="v-list" type="button">
@@ -107,6 +107,8 @@
     <div class="v-head"><h2>Профиль</h2></div>
     <div class="v-scroll">
       <div class="plist">
+        <button class="pi pi-pro" type="button" id="pPro"><span><b>Точка Pro</b><small id="pProSub">Бесплатная версия</small></span><span class="chev">›</span></button>
+        <div class="pi"><span>Бесплатные лимиты<small id="pNotesSub"></small></span></div>
         <div class="pi"><span>Тема</span>
           <div class="seg" role="group" aria-label="Тема" id="theme">
             <button type="button" data-t="auto" aria-pressed="true">Авто</button><button type="button" data-t="light" aria-pressed="false">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button>
@@ -174,6 +176,42 @@
     <p class="small">Место сохранится только на этом устройстве. Чтобы его видели все, потом можно добавить его на OpenStreetMap — ссылка будет в карточке.</p>
     <div class="ms-acts"><button class="btn pri" type="submit">Сохранить</button></div>
   </form>
+</div>
+
+<div class="sheet" id="pro" hidden>
+  <div class="sheet-card pro-card" role="dialog" aria-labelledby="proTitle">
+    <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark">PRO</span> Точка Pro</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
+    <p class="pro-why" id="proWhy" hidden></p>
+    <div id="proActive" class="pro-active" hidden>
+      <b id="proActiveText">Pro активен</b>
+      <span class="small">Ключ работает на всех ваших устройствах — введите его в Точке на телефоне и на компьютере.</span>
+      <button class="linkbtn" id="proReset" type="button">Ввести другой ключ</button>
+    </div>
+    <div id="proSell" class="ms-body">
+      <ul class="pro-list">
+        <li><b>Блокнот без ограничений</b> — бесплатно до 15 заметок и 10 мест в избранном</li>
+        <li><b>«Лучшие клиенты»</b> — сначала те, кому сильнее всего нужен сайт</li>
+        <li><b>Воронка и статистика</b> — сколько ответили и договорились</li>
+        <li><b>Свои шаблоны и подпись</b> для сообщений</li>
+        <li><b>Экспорт в Excel</b> — все клиенты одной таблицей</li>
+        <li><b>Один ключ — все устройства</b>: телефон, компьютер, приложение</li>
+      </ul>
+      <div class="plans" id="plans"></div>
+      <a class="btn pri big" id="proBuy" href="https://t.me/cunbent" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.4 4.3 18.3 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-1 .5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L6.5 13 2 11.6c-1-.3-1-1 .2-1.5L20 3.3c.8-.3 1.6.2 1.4 1z"/></svg>
+        Купить в Telegram</a>
+      <div class="pro-how">
+        <span>Нажмите кнопку — откроется чат <b id="proTg">@cunbent</b>, а текст заказа уже скопирован. Вставьте его и отправьте:</span>
+        <code id="proOrder"></code>
+        <span>После оплаты вам пришлют ключ — введите его ниже.</span>
+      </div>
+      <details class="keybox" id="keybox">
+        <summary>У меня есть ключ</summary>
+        <div class="keyrow"><input id="proKey" type="text" placeholder="TOCHKA-PRO-…" autocomplete="off" spellcheck="false" aria-label="Ключ Pro"><button class="btn" id="proActivate" type="button">Активировать</button></div>
+        <p class="small" id="proMsg" role="status"></p>
+      </details>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
