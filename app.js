@@ -620,7 +620,9 @@ async function token() {
 function authError(e) {
   const m = String(e.message || ''), code = String(e.code || '');
   if (e.status === 429 || /rate|limit|security purposes/i.test(m)) return 'Слишком много попыток. Подождите минуту и попробуйте ещё раз.';
-  if (/Database error|TOCHKA_|unexpected_failure/i.test(m + code)) return 'С этой почтой зарегистрироваться нельзя. Используйте обычный ящик (Яндекс, Mail.ru, Gmail…) без «+» в адресе. Если вы уже регистрировались — войдите с той же почтой.';
+  // письмо не ушло (почта отправителя в Supabase настроена неверно) — это не вина пользователя
+  if (/sending|smtp|email.*(send|deliver)|send.*email/i.test(m)) return 'Не получилось отправить письмо с кодом. Попробуйте через пару минут. (Для владельца: проверьте настройки SMTP в Supabase.) Подробности: ' + m;
+  if (/Database error|TOCHKA_/i.test(m + code)) return 'С этой почтой зарегистрироваться нельзя. Используйте обычный ящик (Яндекс, Mail.ru, Gmail…) без «+» в адресе. Если вы уже регистрировались — войдите с той же почтой.';
   if (/expired|invalid|otp/i.test(m + code)) return 'Код не подошёл или устарел. Проверьте цифры или отправьте код ещё раз.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Нет связи с сервером. Проверьте интернет и попробуйте снова.';
   return 'Не получилось: ' + m;
