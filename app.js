@@ -469,7 +469,6 @@ function toggleFav(id) {
   const p = places.get(id); if (!p) return;
   if (favs[id]) { delete favs[id]; toast('Убрано из избранного'); }
   else {
-    if (!isPro() && Object.keys(favs).length >= PRO.limits.favs) { openPro('favs'); return; }
     favs[id] = p; toast('Добавлено в избранное');
   }
   store.set(FAV_KEY, favs);
@@ -568,112 +567,186 @@ function deleteMine(id) {
   places.delete(id); closeCard(); applyFilter(); toast('Заведение удалено');
 }
 
-/* ---------- Точка Pro: тарифы, ключи, лимиты бесплатной версии ----------
-   Покупка: кнопка открывает Telegram продавца, текст заказа копируется сам.
-   После оплаты продавец выдаёт ключ (scripts вне репозитория: make_key.py) — ключ подписан,
-   приложение проверяет подпись открытым ключом ниже. Подделать ключ без «печати» продавца нельзя. */
-const PRO = {
-  tg: 'cunbent',                                  // кому писать для покупки (Telegram)
-  limits: { notes: 15, favs: 10 },                // бесплатная версия
-  plans: [
-    { id: 'month', name: 'Месяц', price: 290, per: '₽ в месяц' },
-    { id: 'year', name: 'Год', price: 1990, per: '₽ в год', note: 'выгоднее на 43%', best: true },
-    { id: 'life', name: 'Навсегда', price: 990, per: '₽ один раз', note: 'ранний доступ — для первых покупателей' }
-  ],
-  jwk: {"kty": "EC", "crv": "P-256", "x": "8GgKNR9tMe_lA1Rsqf632_gEvm19Evr5M3DrBgjg6zo", "y": "U5gQi5M_2IuxhhM1dn-j2gSoulRl3ibyh8IfTucLvIY"}
+/* ---------- Аккаунт, 3 дня бесплатно, потом подписка 290 ₽/мес ----------
+   Сервер — Supabase: вход по коду из письма, дата регистрации и оплаченный срок хранятся там,
+   поэтому очистка браузера не даёт новых бесплатных дней. Повторные аккаунты (та же почта с «+»,
+   точки в Gmail, одноразовые ящики) отсекает сам сервер — см. supabase_setup.sql у продавца.
+   Пока AUTH не заполнен, Точка работает в бета-режиме: всё открыто, входа нет. */
+const AUTH = {
+  url: '',            // адрес проекта Supabase, например 'https://abcd1234.supabase.co'
+  anon: ''            // публичный ключ проекта (anon / publishable) — его можно хранить в коде
 };
-const PRO_KEY = 'tochka-pro', ORDER_KEY = 'tochka-order';
-const PLAN_NAMES = { m: 'Месяц', y: 'Год', l: 'Навсегда' };
-let pro = null;                                    // { plan, exp: Date|null, expired }
-const isPro = () => !!(pro && !pro.expired);
-const orderId = (() => { let o = store.get(ORDER_KEY, ''); if (!o) { o = 'T-' + Math.random().toString(36).slice(2, 8).toUpperCase(); store.set(ORDER_KEY, o); } return o; })();
-function b64u(str) {
-  str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '=';
-  const bin = atob(str), out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+const PLAN = { price: 290, trialDays: 3, tg: 'cunbent' };
+const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
+const authOn = () => !!(AUTH.url && AUTH.anon);
+let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
+let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
+const isPro = () => !authOn() || !!(session && acct && acct.state !== 'expired' && acct.until > Date.now());
+const fmtDate = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+const daysLeft = t => Math.max(0, Math.ceil((t - Date.now()) / DAY));
+
+async function api(path, { method = 'GET', body, token } = {}) {
+  const r = await fetch(AUTH.url.replace(/\/$/, '') + path, {
+    method,
+    headers: { apikey: AUTH.anon, 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null; try { data = await r.json(); } catch { /* пустой ответ */ }
+  if (!r.ok) { const e = new Error((data && (data.msg || data.message || data.error_description || data.error)) || 'HTTP ' + r.status); e.status = r.status; e.code = data && (data.error_code || data.code); throw e; }
+  return data;
 }
-async function verifyProKey(raw) {
+function saveSession(d) {
+  session = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000,
+    user: { id: d.user.id, email: d.user.email, created_at: d.user.created_at } };
+  store.set(SESSION_KEY, session);
+}
+async function token() {
+  if (!session) return null;
+  if (session.expires_at - Date.now() > 60000) return session.access_token;
+  try { saveSession(await api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: session.refresh_token } })); return session.access_token; }
+  catch (e) { if (e.status === 400 || e.status === 401) signOut(true); return null; }
+}
+// понятные сообщения вместо технических ошибок сервера
+function authError(e) {
+  const m = String(e.message || ''), code = String(e.code || '');
+  if (e.status === 429 || /rate|limit|security purposes/i.test(m)) return 'Слишком много попыток. Подождите минуту и попробуйте ещё раз.';
+  if (/Database error|TOCHKA_|unexpected_failure/i.test(m + code)) return 'С этой почтой зарегистрироваться нельзя. Используйте обычный ящик (Яндекс, Mail.ru, Gmail…) без «+» в адресе. Если вы уже регистрировались — войдите с той же почтой.';
+  if (/expired|invalid|otp/i.test(m + code)) return 'Код не подошёл или устарел. Проверьте цифры или отправьте код ещё раз.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Нет связи с сервером. Проверьте интернет и попробуйте снова.';
+  return 'Не получилось: ' + m;
+}
+async function loadStatus() {
+  if (!authOn() || !session) { applyAccess(); return; }
+  const t = await token();
+  if (!t) { applyAccess(); return; }
   try {
-    const k = String(raw || '').replace(/\s+/g, '');
-    if (!k.startsWith('TOCHKA-PRO-')) return null;
-    const bytes = b64u(k.slice(11));
-    if (bytes.length !== 71 || bytes[0] !== 1) return null;
-    const payload = bytes.slice(0, 7), sig = bytes.slice(7);
-    const pub = await crypto.subtle.importKey('jwk', PRO.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-    if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)) return null;
-    const plan = String.fromCharCode(payload[1]), days = (payload[2] << 8) | payload[3];
-    if (!PLAN_NAMES[plan]) return null;
-    const exp = days === 0xFFFF ? null : new Date(2026, 0, 1 + days, 23, 59, 59);
-    return { plan, exp, expired: !!exp && exp.getTime() < Date.now() };
-  } catch { return null; }
+    // дата регистрации и оплаченный срок — с сервера, а не из копии на устройстве
+    const rows = await api(`/rest/v1/subscriptions?select=paid_until,created_at&user_id=eq.${session.user.id}`, { token: t });
+    const row = (rows && rows[0]) || {};
+    const paid = row.paid_until ? Date.parse(row.paid_until) : 0;
+    const trialUntil = Date.parse(row.created_at || session.user.created_at) + PLAN.trialDays * DAY;
+    const now = Date.now();
+    acct = paid > now ? { state: 'active', until: paid } : trialUntil > now ? { state: 'trial', until: trialUntil } : { state: 'expired', until: Math.max(paid, trialUntil) };
+    acct.email = session.user.email; acct.checked = now; acct.paid = paid > 0;
+    store.set(ACCT_KEY, acct);
+  } catch (e) { console.warn('Статус подписки не обновился:', e.message); }   // без сети — живём по последнему известному статусу
+  applyAccess();
 }
-const proUntil = p => p.exp ? 'до ' + p.exp.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : 'без срока';
-// true — если действие только для Pro и надо показать экран покупки
-function needPro(reason) { if (isPro()) return false; openPro(reason); return true; }
-const PRO_WHY = {
-  notes: `В бесплатной версии — до ${PRO.limits.notes} заметок. С Pro блокнот без ограничений.`,
-  favs: `В бесплатной версии — до ${PRO.limits.favs} мест в избранном.`,
-  sort: 'Сортировка «Лучшие клиенты» показывает первыми тех, кому сильнее всего нужен сайт.',
-  stats: 'Воронка и статистика показывают, сколько вам ответили и где теряются клиенты.',
-  tpl: 'Свои шаблоны и подпись — пишите клиентам своими словами в один клик.',
-  export: 'Выгрузка всех клиентов и заметок в Excel.',
-  menu: ''
+function signOut(silent) {
+  session = null; acct = null; store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
+  closePro(); applyAccess();
+  if (!silent) toast('Вы вышли из аккаунта');
+}
+function orderText() {
+  return `Здравствуйте! Хочу оплатить Точку Pro на месяц — ${PLAN.price} ₽. Почта аккаунта: ${session ? session.user.email : '—'}`;
+}
+
+/* экран входа / оплаты */
+let gateStep = '';
+function showGate(step) {
+  gateStep = step;
+  $('#gate').hidden = false;
+  $('#gEmail').hidden = step !== 'email'; $('#gCode').hidden = step !== 'code'; $('#gPay').hidden = step !== 'pay';
+  document.body.classList.add('gated');
+  if (step === 'pay') {
+    $('#gPayTitle').textContent = acct && acct.paid ? 'Подписка закончилась' : 'Пробный период закончился';
+    $('#gOrder').textContent = orderText();
+    $('#gBuy').href = `https://t.me/${PLAN.tg}`;
+    document.querySelectorAll('.gTg').forEach(x => x.textContent = '@' + PLAN.tg);
+  }
+  if (step === 'email') setTimeout(() => $('#gMail').focus(), 60);
+  if (step === 'code') setTimeout(() => $('#gOtp').focus(), 60);
+}
+function hideGate() { $('#gate').hidden = true; gateStep = ''; document.body.classList.remove('gated'); }
+function applyAccess() {
+  document.documentElement.classList.toggle('is-pro', authOn() && isPro());
+  if (!authOn()) hideGate();
+  else if (!session) { if (gateStep !== 'code') showGate('email'); }
+  else if (!isPro()) showGate('pay');
+  else hideGate();
+  try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
+}
+$('#gPrice').textContent = `${PLAN.price} ₽ в месяц`;
+let mailTo = '', resendAt = 0;
+async function sendCode() {
+  const email = $('#gMail').value.trim().toLowerCase();
+  const msg = $('#gMsg1');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = 'Проверьте адрес почты.'; $('#gMail').focus(); return; }
+  if (!$('#gAgree').checked) { msg.textContent = 'Нужно согласие с политикой конфиденциальности.'; return; }
+  if (/\+/.test(email.split('@')[0])) { msg.textContent = 'Адреса с «+» не подходят — укажите обычный адрес.'; return; }
+  $('#gSend').disabled = true; msg.textContent = 'Отправляю код…';
+  try {
+    await api('/auth/v1/otp', { method: 'POST', body: { email, create_user: true } });
+    mailTo = email; resendAt = Date.now() + 60000;
+    $('#gTo').textContent = email; $('#gOtp').value = ''; $('#gMsg2').textContent = '';
+    showGate('code');
+  } catch (e) { msg.textContent = authError(e); }
+  finally { $('#gSend').disabled = false; }
+}
+$('#gEmail').addEventListener('submit', e => { e.preventDefault(); sendCode(); });
+$('#gCode').addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = $('#gOtp').value.replace(/\D/g, ''), msg = $('#gMsg2');
+  if (code.length < 6) { msg.textContent = 'Введите код из письма — 6 цифр.'; return; }
+  $('#gVerify').disabled = true; msg.textContent = 'Проверяю…';
+  try {
+    saveSession(await api('/auth/v1/verify', { method: 'POST', body: { type: 'email', email: mailTo, token: code } }));
+    msg.textContent = '';
+    await loadStatus();
+    if (isPro() && acct && acct.state === 'trial') toast(`Добро пожаловать! Пробный период — до ${fmtDate(acct.until)}`, 3200);
+  } catch (err) { msg.textContent = authError(err); }
+  finally { $('#gVerify').disabled = false; }
+});
+$('#gOtp').addEventListener('input', () => { const v = $('#gOtp').value.replace(/\D/g, ''); $('#gOtp').value = v; if (v.length === 6) $('#gCode').requestSubmit(); });
+$('#gBack').onclick = () => showGate('email');
+$('#gResend').onclick = () => {
+  const wait = Math.ceil((resendAt - Date.now()) / 1000);
+  if (wait > 0) { $('#gMsg2').textContent = `Отправить ещё раз можно через ${wait} с.`; return; }
+  $('#gMail').value = mailTo; showGate('email'); sendCode();
 };
-let proPlan = 'year';
-function openPro(reason = 'menu') {
-  $('#proWhy').textContent = PRO_WHY[reason] || '';
-  $('#proWhy').hidden = !PRO_WHY[reason];
-  drawPro();
+$('#gBuy').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
+$('#gCheck').onclick = async () => {
+  $('#gMsg3').textContent = 'Проверяю оплату…';
+  await loadStatus();
+  $('#gMsg3').textContent = isPro() ? '' : 'Оплата ещё не отмечена. Обычно это занимает несколько минут после перевода — проверьте позже.';
+  if (isPro()) toast(`Спасибо! Подписка активна до ${fmtDate(acct.until)}`, 3000);
+};
+$('#gOut').onclick = () => signOut();
+
+/* окно «Подписка» из профиля */
+function needPro() { if (isPro()) return false; applyAccess(); return true; }
+function openPro() {
+  const box = $('#accBox'), acts = $('#accActs');
+  if (!authOn()) {
+    box.innerHTML = `<b>Бета-версия</b><span class="small">Сейчас всё в Точке бесплатно. Скоро появится вход по почте: 3 дня бесплатно, дальше ${PLAN.price} ₽ в месяц.</span>`;
+    acts.innerHTML = '';
+  } else {
+    const st = acct && acct.state;
+    box.innerHTML = `<b>${st === 'active' ? `Подписка активна до ${fmtDate(acct.until)}` : st === 'trial' ? `Пробный период: ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])} — до ${fmtDate(acct.until)}` : 'Подписки нет'}</b>
+      <span class="small">Аккаунт: ${esc(session ? session.user.email : '')}. Подписка работает на всех устройствах — войдите с этой почтой на телефоне и на компьютере.</span>
+      <span class="small">Продление: ${PLAN.price} ₽ в месяц, оплата в Telegram @${PLAN.tg}. Оплаченный месяц прибавляется к текущему сроку.</span>`;
+    acts.innerHTML = `<a class="btn pri" id="accBuy" href="https://t.me/${PLAN.tg}" target="_blank" rel="noopener">${st === 'active' ? 'Продлить' : 'Оплатить'} в Telegram</a>
+      <button class="btn" type="button" id="accCheck">Обновить статус</button><button class="btn" type="button" id="accOut">Выйти</button>`;
+    $('#accBuy').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
+    $('#accCheck').onclick = async () => { await loadStatus(); openPro(); toast('Статус обновлён'); };
+    $('#accOut').onclick = () => signOut();
+  }
   $('#pro').hidden = false;
 }
 function closePro() { $('#pro').hidden = true; }
-function orderText() {
-  const pl = PRO.plans.find(x => x.id === proPlan);
-  return `Здравствуйте! Хочу купить Точку Pro — тариф «${pl.name}» (${pl.price.toLocaleString('ru-RU')} ${pl.per}). Заказ ${orderId}.`;
-}
-function drawPro() {
-  const active = isPro();
-  $('#proActive').hidden = !active;
-  $('#proSell').hidden = active;
-  if (active) $('#proActiveText').textContent = `Pro активен · ${PLAN_NAMES[pro.plan]}, ${proUntil(pro)}`;
-  if (pro && pro.expired) { $('#proWhy').hidden = false; $('#proWhy').textContent = `Срок Pro закончился ${pro.exp.toLocaleDateString('ru-RU')}. Продлите, чтобы снова пользоваться всеми функциями.`; }
-  $('#plans').innerHTML = PRO.plans.map(pl => `<button type="button" class="plan${pl.best ? ' best' : ''}" data-plan="${pl.id}" aria-pressed="${pl.id === proPlan}">
-      ${pl.best ? '<span class="plan-tag">Выгодно</span>' : ''}<b>${pl.name}</b><span class="price">${pl.price.toLocaleString('ru-RU')}</span><span class="per">${pl.per}</span>${pl.note ? `<small>${pl.note}</small>` : ''}
-    </button>`).join('');
-  $('#plans').querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { proPlan = b.dataset.plan; drawPro(); });
-  $('#proBuy').href = `https://t.me/${PRO.tg}`;
-  $('#proOrder').textContent = orderText();
-  $('#proTg').textContent = '@' + PRO.tg;
-}
-$('#proBuy').addEventListener('click', () => copy(orderText(), 'Текст заказа скопирован — вставьте его в чат'));
 $('#prox').onclick = closePro;
 $('#pro').addEventListener('click', e => { if (e.target.id === 'pro') closePro(); });
-$('#proActivate').onclick = async () => {
-  const v = $('#proKey').value;
-  const msg = $('#proMsg');
-  if (!v.trim()) { $('#proKey').focus(); return; }
-  if (!(window.crypto && crypto.subtle)) { msg.textContent = 'Проверка ключа работает только по защищённому адресу. Откройте Точку по ссылке https://cunbent-present.github.io/tochka/'; return; }
-  msg.textContent = 'Проверяю…';
-  const res = await verifyProKey(v);
-  if (!res) { msg.textContent = 'Ключ не подошёл. Проверьте, что скопировали его целиком, начиная с TOCHKA-PRO-.'; return; }
-  if (res.expired) { msg.textContent = `Этот ключ закончился ${res.exp.toLocaleDateString('ru-RU')}.`; return; }
-  pro = res; store.set(PRO_KEY, v.replace(/\s+/g, ''));
-  msg.textContent = ''; $('#proKey').value = '';
-  applyPro(); drawPro();
-  toast('Точка Pro включена. Спасибо!', 2600);
-};
-$('#proReset').onclick = () => { $('#proActive').hidden = true; $('#proSell').hidden = false; $('#keybox').open = true; $('#proKey').focus(); };
-// Pro меняет вид: значок у логотипа, статистика без замка
-function applyPro() {
-  document.documentElement.classList.toggle('is-pro', isPro());
-  if (current === 'v-crm') renderCrm();
-  if (current === 'v-prof') renderProfile();
+
+// при запуске и потом время от времени сверяемся с сервером
+applyAccess();
+if (authOn()) {
+  loadStatus().then(() => {
+    if (acct && acct.state === 'trial' && daysLeft(acct.until) <= 1) setTimeout(() => toast(`Пробный период заканчивается ${fmtDate(acct.until)}. Подписка — ${PLAN.price} ₽ в месяц`, 3600), 1800);
+  });
+  setInterval(loadStatus, 30 * 60 * 1000);
+  setInterval(() => { if (acct && acct.until <= Date.now()) applyAccess(); }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && acct && Date.now() - (acct.checked || 0) > 10 * 60 * 1000) loadStatus(); });
 }
-(async () => {
-  const saved = store.get(PRO_KEY, '');
-  if (saved) { pro = await verifyProKey(saved); applyPro(); if (pro && pro.expired) toast('Срок Точки Pro закончился — продлите в «Профиле»', 3200); }
-})();
 
 /* ---------- фильтр и поиск ---------- */
 let cat = 'all', noSite = false, favOnly = false, sel = null, visible = [];
@@ -1009,7 +1082,7 @@ function drawNotes() {
 $('#nf').addEventListener('submit', e => {
   e.preventDefault();
   const t = $('#nt').value.trim(); if (!t) { $('#nt').focus(); return; }
-  if (!isPro() && notes.length >= PRO.limits.notes) { openPro('notes'); return; }
+  if (needPro()) return;
   const n = { t, d: Date.now(), s: 'new' };
   if (notePlace) { n.pid = notePlace.id; n.lat = notePlace.lat; n.lon = notePlace.lon; n.place = notePlace; notePlace = null; }
   notes.unshift(n); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
@@ -1111,7 +1184,6 @@ function logContact(p) {
   logged = true;
   let n = notes.find(x => x.pid === p.id);
   if (!n) {
-    if (!isPro() && notes.length >= PRO.limits.notes) { toast(`Не записано в блокнот: в бесплатной версии до ${PRO.limits.notes} заметок`, 2800); return; }
     n = { t: contactText(p), d: Date.now(), s: 'sent', pid: p.id, lat: p.lat, lon: p.lon, place: p }; notes.unshift(n);
   }
   else if (!n.s || n.s === 'new') n.s = 'sent';
@@ -1196,8 +1268,11 @@ function renderCrm() {
 /* ---------- профиль ---------- */
 const REM_KEY = 'tochka-remind';
 function renderProfile() {
-  $('#pProSub').textContent = isPro() ? `Активен · ${PLAN_NAMES[pro.plan]}, ${proUntil(pro)}` : pro && pro.expired ? 'Срок закончился — продлите' : `Бесплатная версия · от ${PRO.plans[0].price} ₽ в месяц`;
-  $('#pNotesSub').textContent = isPro() ? 'Без ограничений' : `${notes.length} из ${PRO.limits.notes} заметок · ${Object.keys(favs).length} из ${PRO.limits.favs} в избранном`;
+  $('#pProSub').textContent = !authOn() ? 'Бета-версия — сейчас всё бесплатно'
+    : !acct ? '—' : acct.state === 'active' ? `Активна до ${fmtDate(acct.until)}`
+    : acct.state === 'trial' ? `Пробный период · осталось ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])}` : 'Закончилась — продлите';
+  $('#pAcc').hidden = !authOn();
+  $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
   document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
   $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);
   $('#swRem').setAttribute('aria-checked', store.get(REM_KEY, true));
@@ -1209,8 +1284,9 @@ $('#sw3d').onclick = () => { $('#tilt').click(); setTimeout(renderProfile, 950);
 $('#swRem').onclick = () => { const on = !store.get(REM_KEY, true); store.set(REM_KEY, on); $('#swRem').setAttribute('aria-checked', on); toast(on ? 'Напоминания включены' : 'Напоминания выключены'); };
 $('#pTpl').onclick = () => { if (needPro('tpl')) return; msgPlace = null; $('#msTitle').textContent = 'Мои шаблоны и подпись'; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); $('#ms').hidden = false; };
 $('#pExport').onclick = () => $('#export').click();
-$('#pPro').onclick = () => openPro('menu');
-document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b) openPro(b.dataset.pro); });
+$('#pPro').onclick = () => openPro();
+$('#pAcc').onclick = () => openPro();
+document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b) openPro(); });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
