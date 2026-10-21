@@ -573,12 +573,22 @@ function deleteMine(id) {
    точки в Gmail, одноразовые ящики) отсекает сам сервер — см. supabase_setup.sql у продавца.
    Пока AUTH не заполнен, Точка работает в бета-режиме: всё открыто, входа нет. */
 const AUTH = {
-  url: '',            // адрес проекта Supabase, например 'https://abcd1234.supabase.co'
-  anon: ''            // публичный ключ проекта (anon / publishable) — его можно хранить в коде
+  url: 'https://aficnrxwryphxdgjmyfx.supabase.co',             // адрес проекта Supabase
+  anon: 'sb_publishable_jxAB9uHvaD7-Tp_qkdgGiQ_tQswTA_2',     // публичный ключ (его можно хранить в коде)
+  live: false         // false — вход включён только в режиме проверки (ссылка …/tochka/?test-login); true — для всех
 };
+// режим проверки: открыть Точку по ссылке с ?test-login (выключить — ?test-login=off)
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.has('test-login')) {
+    if (q.get('test-login') === 'off') localStorage.removeItem('tochka-auth-test'); else localStorage.setItem('tochka-auth-test', '1');
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+} catch { /* без хранилища — просто без режима проверки */ }
 const PLAN = { price: 290, trialDays: 3, tg: 'cunbent' };
 const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
-const authOn = () => !!(AUTH.url && AUTH.anon);
+const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') === '1'; } catch { return false; } })();
+const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
 let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
 let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
 const isPro = () => !authOn() || !!(session && acct && acct.state !== 'expired' && acct.until > Date.now());
