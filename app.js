@@ -30,7 +30,11 @@ const VIEW_KEY = 'tochka-view';
 const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
 const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
-const DARK = matchMedia('(prefers-color-scheme: dark)').matches;
+const THEME_KEY = 'tochka-theme';
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+let themeMode = (() => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : 'auto'; } catch { return 'auto'; } })();
+const computeDark = () => themeMode === 'dark' || (themeMode === 'auto' && sysDark.matches);
+let DARK = computeDark();
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const $ = s => document.querySelector(s);
@@ -243,7 +247,7 @@ const map = new maplibregl.Map({
 });
 let styleLoaded = false, triedFallback = false;
 map.on('error', e => {
-  if (!styleLoaded && DARK && !triedFallback) { triedFallback = true; map.setStyle(STYLE_LIGHT); return; }
+  if (!styleLoaded && DARK && !triedFallback) { triedFallback = true; map.setStyle(STYLE_LIGHT, { diff: false }); return; }
   if (!styleLoaded) setStatus('Не удалось загрузить карту. Проверьте интернет.');
   console.warn(e && e.error);
 });
@@ -340,7 +344,23 @@ function setupLayers() {
   pushData();
 }
 map.on('style.load', setupLayers);
-map.on('load', () => { loadView(); updateCity(); drawList(); });
+function setTheme(mode) {
+  themeMode = mode;
+  try { localStorage.setItem(THEME_KEY, mode); } catch {}
+  if (mode === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', mode);
+  document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === mode));
+  restyleMap();
+}
+function restyleMap() {
+  const d = computeDark();
+  if (d === DARK) return;
+  DARK = d; styleLoaded = false; triedFallback = false;
+  map.setStyle(DARK ? STYLE_DARK : STYLE_LIGHT, { diff: false });   // слои меток добавятся заново в style.load
+}
+{ const onSys = () => { if (themeMode === 'auto') restyleMap(); };   // старые Safari знают только addListener
+  if (sysDark.addEventListener) sysDark.addEventListener('change', onSys); else if (sysDark.addListener) sysDark.addListener(onSys); }
+map.on('load', () => { loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); });
 
 const geo = list => ({
   type: 'FeatureCollection',
@@ -379,7 +399,7 @@ map.on('moveend', () => {
 
 $('#zin').onclick = () => map.zoomIn();
 $('#zout').onclick = () => map.zoomOut();
-function syncTilt() { const on = map.getPitch() > 5; $('#tilt').textContent = on ? '2D' : '3D'; $('#tilt').setAttribute('aria-pressed', on); }
+function syncTilt() { const on = map.getPitch() > 5; $('#tilt').textContent = on ? '2D' : '3D'; $('#tilt').setAttribute('aria-pressed', on); const s3 = document.getElementById('sw3d'); if (s3) s3.setAttribute('aria-checked', on); }
 $('#tilt').onclick = () => {
   const flat = map.getPitch() > 5;
   map.easeTo({ pitch: flat ? 0 : 55, bearing: flat ? 0 : -14, duration: REDUCE ? 0 : 900 });
@@ -493,7 +513,7 @@ for (const p of Object.values(mine)) places.set(p.id, p);
 let addMode = false, pickAt = null, editId = null, pickCity = '';
 function startAdd() {
   addMode = true; closeCard(); $('#pick').hidden = false; $('#addp').setAttribute('aria-pressed', 'true');
-  map.getCanvas().style.cursor = 'crosshair'; $('#main').classList.remove('showlist'); $('#lt').textContent = 'Список';
+  map.getCanvas().style.cursor = 'crosshair'; go('v-map'); setSnap(0);
 }
 function stopAdd() { addMode = false; $('#pick').hidden = true; $('#addp').setAttribute('aria-pressed', 'false'); map.getCanvas().style.cursor = ''; }
 $('#addp').onclick = () => addMode ? stopAdd() : startAdd();
@@ -597,7 +617,7 @@ function fitTo(list) {
 // «Скачать» в углу — прячем, если Точка уже открыта как установленное приложение
 const inApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone || window.Capacitor ||
   /Electron|; wv\)/.test(navigator.userAgent);
-if (inApp) $('#dl').hidden = true;
+if (inApp) { $('#railDl').hidden = true; $('#pDl').hidden = true; }
 
 /* ---------- список ---------- */
 function visibleInView() {
@@ -605,30 +625,121 @@ function visibleInView() {
   return visible.filter(p => b.contains([p.lon, p.lat]));
 }
 let sortMode = store.get('tochka-sort', 'near');
+const plural = (n, f) => f[(n % 10 === 1 && n % 100 !== 11) ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2];
+const fmtDist = d => d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км';
+function itemHtml({ p, d }) {
+  const l = lead(p);
+  return `<button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
+    <span class="bar" style="background:${CATS[p.cat].color}"></span>
+    <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
+    <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
+    <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Нет сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
+  </button>`;
+}
+function bindItems(root) {
+  root.querySelectorAll('.item').forEach(b => b.onclick = () => { go('v-map'); select(b.dataset.id, true); });
+}
+function emptyText() {
+  return favOnly ? 'В избранном пока ничего нет. Откройте заведение и нажмите ☆ рядом с названием.'
+    : map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.'
+    : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.';
+}
 function drawList() {
   const c = map.getCenter(), cc = [c.lat, c.lng];
   const src = favOnly ? visible : visibleInView();
-  const inView = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]), s: lead(p).score }))
+  const rows = src.map(p => ({ p, d: distM(cc, [p.lat, p.lon]), s: lead(p).score }))
     .sort(sortMode === 'lead' ? (a, z) => z.s - a.s || a.d - z.d : (a, z) => a.d - z.d).slice(0, 150);
-  const dist = d => d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км';
-  const L = $('#list');
-  L.innerHTML = `<div class="list-head"><div><b>${favOnly ? 'Избранное' : 'На экране'}: ${inView.length}</b><div class="small">загружено ${places.size.toLocaleString('ru-RU')}</div></div>
-    <div class="seg" role="group" aria-label="Сортировка">
-      <button type="button" data-sort="near" aria-pressed="${sortMode === 'near'}">Ближе</button>
-      <button type="button" data-sort="lead" aria-pressed="${sortMode === 'lead'}" title="Сначала те, кому больше всего нужен сайт">Клиенты</button>
-    </div></div>` +
-    (inView.length ? inView.map(({ p, d }) => `
-      <button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
-        <span class="bar" style="background:${CATS[p.cat].color}"></span>
-        <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
-        <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${dist(d)}</div>
-        <div class="meta-line">${lvPill(lead(p))}${lead(p).kind === 'none' ? '<span class="flag">Нет сайта</span>' : lead(p).kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
-      </button>`).join('')
-    : `<div class="empty">${favOnly ? 'В избранном пока ничего нет. Откройте заведение и нажмите ☆ рядом с названием.' : map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.' : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.'}</div>`);
-  L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
-  L.querySelectorAll('.item').forEach(b => b.onclick = () => { select(b.dataset.id, true); $('#main').classList.remove('showlist'); $('#lt').textContent = 'Список'; });
+  if (current === 'v-list') {
+    const L = $('#list');
+    L.innerHTML = `<div class="list-head"><div><b>${favOnly ? 'Избранное' : 'На карте'}: ${rows.length}</b><div class="small">загружено ${places.size.toLocaleString('ru-RU')}</div></div>
+      <div class="seg" role="group" aria-label="Сортировка">
+        <button type="button" data-sort="near" aria-pressed="${sortMode === 'near'}">Ближе</button>
+        <button type="button" data-sort="lead" aria-pressed="${sortMode === 'lead'}" title="Сначала те, кому больше всего нужен сайт">Лучшие клиенты</button>
+      </div></div>` + (rows.length ? rows.map(itemHtml).join('') : `<div class="empty">${emptyText()}</div>`);
+    L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
+    bindItems(L);
+  }
+  if (!sel) drawNear(rows);
 }
-$('#lt').onclick = () => { const m = $('#main'); m.classList.toggle('showlist'); $('#lt').textContent = m.classList.contains('showlist') ? 'Карта' : 'Список'; };
+// шторка без выбранного заведения: «Рядом» со сводкой
+function drawNear(rows) {
+  const noSiteN = rows.filter(r => lead(r.p).kind !== 'own').length;
+  $('#card').innerHTML = `<div class="near-h"><b>${favOnly ? 'Избранное' : 'Рядом'}</b>
+    <div class="small">${rows.length ? `${rows.length} ${plural(rows.length, ['заведение', 'заведения', 'заведений'])} · ${noSiteN} без своего сайта` : emptyText()}</div></div>`
+    + rows.slice(0, 60).map(itemHtml).join('');
+  bindItems($('#card'));
+}
+
+/* ---------- шторка на телефоне: мини / половина / весь экран ---------- */
+const drawer = $('#drawer');
+let SNAP = [112, 400, 700], snap = 0;
+const isDesk = () => innerWidth > 760;
+function measureDrawer() {
+  const h = $('#v-map').offsetHeight;
+  SNAP = [112, Math.round(h * .52), h - 8];
+}
+function setSnap(i, anim = true) {
+  snap = Math.max(0, Math.min(2, i));
+  if (isDesk()) { drawer.style.transform = ''; return; }
+  drawer.classList.toggle('anim', anim && !REDUCE);
+  drawer.style.transform = `translateY(${SNAP[2] - SNAP[snap]}px)`;
+}
+{
+  let sd = null;
+  const grab = $('#grab');
+  grab.addEventListener('pointerdown', e => {
+    if (isDesk()) return;
+    sd = { y: e.clientY, base: SNAP[2] - SNAP[snap], last: e.clientY, lt: performance.now(), v: 0 };
+    grab.setPointerCapture(e.pointerId); drawer.classList.remove('anim');
+  });
+  grab.addEventListener('pointermove', e => {
+    if (!sd) return;
+    const y = Math.max(0, Math.min(SNAP[2] - SNAP[0], sd.base + e.clientY - sd.y));
+    drawer.style.transform = `translateY(${y}px)`;
+    const now = performance.now();
+    sd.v = (e.clientY - sd.last) / Math.max(1, now - sd.lt); sd.last = e.clientY; sd.lt = now;
+  });
+  const end = e => {
+    if (!sd) return;
+    if (Math.abs(e.clientY - sd.y) < 5) { setSnap(snap === 2 ? 0 : snap + 1); sd = null; return; }   // просто нажатие — следующий уровень
+    const visibleH = SNAP[2] - (sd.base + e.clientY - sd.y);
+    let i = SNAP.reduce((b, s, k) => Math.abs(s - visibleH) < Math.abs(SNAP[b] - visibleH) ? k : b, 0);
+    if (sd.v < -0.5) i = Math.min(2, Math.max(i, snap + 1));
+    if (sd.v > 0.5) i = Math.max(0, Math.min(i, snap - 1));
+    setSnap(i); sd = null;
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
+}
+
+/* ---------- вкладки ---------- */
+let current = 'v-map';
+function movePill() {
+  const t = document.querySelector('.tab[aria-selected="true"]'), pill = $('#tabpill');
+  if (!t) return;
+  const L = t.offsetLeft, T = t.offsetTop, W = t.offsetWidth, H = t.offsetHeight;
+  if (isDesk()) {
+    pill.style.width = (W - 4) + 'px'; pill.style.height = (H - 4) + 'px';
+    pill.style.transform = `translate(${L + 2}px,${T + 2 - 6}px)`;
+  } else {
+    const w = Math.min(W - 8, 84);
+    pill.style.width = w + 'px'; pill.style.height = '';
+    pill.style.transform = `translateX(${L + (W - w) / 2}px)`;
+  }
+}
+function go(v) {
+  if (current === v) return;
+  current = v;
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.v === v));
+  document.querySelectorAll('.view').forEach(el => el.classList.toggle('off', el.id !== v));
+  movePill();
+  if (v === 'v-map') requestAnimationFrame(() => map.resize());
+  if (v === 'v-list') { drawList(); $('#list').scrollTop = 0; }
+  if (v === 'v-crm') renderCrm();
+  if (v === 'v-prof') renderProfile();
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => go(t.dataset.v));
+addEventListener('resize', () => { measureDrawer(); setSnap(snap, false); movePill(); });
 
 /* ---------- карточка ---------- */
 const DAYS = { Mo: 'Пн', Tu: 'Вт', We: 'Ср', Th: 'Чт', Fr: 'Пт', Sa: 'Сб', Su: 'Вс', PH: 'праздники', off: 'выходной', closed: 'закрыто' };
@@ -646,11 +757,14 @@ function contactText(p) {
 function select(id, fly) {
   const p = places.get(id); if (!p) return;
   sel = id; markSelected();
-  const mobile = innerWidth <= 760;
+  const mobile = !isDesk();
+  if (mobile && snap !== 1) setSnap(1);
+  // заведение — в центре свободной части карты (над шторкой или левее панели)
+  const off = mobile ? [0, -Math.round(SNAP[1] / 2) + 20] : [-Math.round((parseInt(getComputedStyle(document.documentElement).getPropertyValue('--panelw')) || 380) / 2) - 14, 0];
   if (fly || map.getZoom() < 15.5) {
-    map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 16.5), offset: mobile ? [0, -110] : [140, 0], essential: true, duration: REDUCE ? 0 : 1200 });
-  } else if (mobile) {
-    map.easeTo({ center: [p.lon, p.lat], offset: [0, -110] });
+    map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 16.5), offset: off, essential: true, duration: REDUCE ? 0 : 1200 });
+  } else {
+    map.easeTo({ center: [p.lon, p.lat], offset: off, duration: REDUCE ? 0 : 500 });
   }
   const c = CATS[p.cat];
   const row = (k, v, btn = '') => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span>${btn || '<span></span>'}</div>`;
@@ -688,7 +802,7 @@ function select(id, fly) {
       <div class="mine-acts"><button class="mini" type="button" id="medit">Изменить</button><button class="mini" type="button" id="mdel">Удалить</button>
       <a class="mini" href="https://www.openstreetmap.org/edit#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">Добавить на OpenStreetMap для всех</a></div></div>`
     : `<div class="src">Источник: OpenStreetMap${p.db ? ' (база Точки)' : ''}. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a></div>`}`;
-  $('#card').hidden = false;
+  $('#card').scrollTop = 0;
   $('#cx').onclick = closeCard;
   $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
   // перезапуск «всплытия» карточки
@@ -706,8 +820,9 @@ function select(id, fly) {
   drawList();
 }
 function closeCard() {
-  if (!sel && $('#card').hidden) return;
-  sel = null; markSelected(); $('#card').hidden = true; drawList();
+  if (!sel) return;
+  sel = null; markSelected(); drawList();
+  if (!isDesk()) setSnap(0);
 }
 
 /* ---------- копирование и тост ---------- */
@@ -739,7 +854,7 @@ function drawNotes() {
   $('#cnt').textContent = notes.length;
   const due = notes.filter(isDue).length;
   $('#due').textContent = due; $('#due').hidden = !due;
-  $('#fab').setAttribute('aria-label', due ? `Открыть блокнот: пора написать ${due}` : 'Открыть блокнот');
+  $('#due').setAttribute('aria-label', due ? `Пора написать: ${due}` : '');
   $('#nl').innerHTML = notes.length ? notes.map(n => `
     <div class="note"><div class="nt-top">
       <button class="st st-${n.s || 'new'}" type="button" data-st="${n.d}" title="Нажмите, чтобы сменить статус">${stName(n.s)}</button>
@@ -761,6 +876,7 @@ function drawNotes() {
     const n = notes.find(x => x.d === +b.dataset.st); if (!n) return;
     const i = STATUSES.findIndex(x => x[0] === (n.s || 'new'));
     n.s = STATUSES[(i + 1) % STATUSES.length][0];
+    if (n.s === 'sent') n.sentAt = Date.now();
     if (n.s === 'deal' || n.s === 'no') delete n.r;
     saveNotes(); drawNotes();
   });
@@ -770,9 +886,10 @@ function drawNotes() {
     else { n.r = dayAt(+sel.value); toast('Напомню ' + fmtDay(n.r)); }
     saveNotes(); drawNotes();
   });
+  if (current === 'v-crm') renderCrm(); else renderTodoBadge();
   $('#nl').querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +b.dataset.go); if (!n) return;
-    $('#np').classList.remove('on');
+    go('v-map');
     if (n.pid && !places.has(n.pid) && n.place) places.set(n.pid, n.place);
     if (n.pid && places.has(n.pid)) select(n.pid, true);
     else map.flyTo({ center: [n.lon, n.lat], zoom: 16.5, essential: true });
@@ -882,6 +999,7 @@ function logContact(p) {
   let n = notes.find(x => x.pid === p.id);
   if (!n) { n = { t: contactText(p), d: Date.now(), s: 'sent', pid: p.id, lat: p.lat, lon: p.lon, place: p }; notes.unshift(n); }
   else if (!n.s || n.s === 'new') n.s = 'sent';
+  n.sentAt = Date.now();
   if ($('#msRemind').checked) n.r = dayAt(3);
   saveNotes(); drawNotes();
 }
@@ -905,19 +1023,80 @@ $('#sign').oninput = () => { sign = $('#sign').value; store.set(SIGN_KEY, sign);
 $('#msEdit').onclick = () => { $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); };
 $('#tplAdd').onclick = () => { tpls.push({ n: 'Мой шаблон', t: 'Здравствуйте! ' }); store.set(TPL_KEY, tpls); drawTplEditor(); };
 $('#tplReset').onclick = () => { tpls = DEFAULT_TPL.map(x => ({ ...x })); store.set(TPL_KEY, tpls); drawTplEditor(); toast('Стандартные шаблоны возвращены'); };
-$('#tplDone').onclick = () => { $('#msTpl').hidden = true; $('#msSend').hidden = false; drawMsg(); };
+$('#tplDone').onclick = () => { if (!msgPlace) { closeMsg(); renderProfile(); return; } $('#msTpl').hidden = true; $('#msSend').hidden = false; drawMsg(); };
 
-function openNotes() { $('#np').classList.add('on'); }
-$('#fab').onclick = () => { const on = $('#np').classList.toggle('on'); if (on) $('#nt').focus(); };
-$('#npx').onclick = () => { $('#np').classList.remove('on'); if (!$('#nt').value.trim()) notePlace = null; };
+function openNotes() { go('v-crm'); requestAnimationFrame(() => $('#nf').scrollIntoView({ block: 'center', behavior: REDUCE ? 'auto' : 'smooth' })); }
+
+/* ---------- «Мои клиенты»: сводка, кому написать, воронка, неделя ---------- */
+const BAR = { new: 'var(--bar-new)', sent: 'var(--bar-sent)', reply: 'var(--bar-reply)', deal: 'var(--bar-deal)', no: 'var(--bar-no)' };
+const noteName = n => (n.place && n.place.name) || (n.t || '').split('\n')[0].slice(0, 60) || 'Заметка';
+function renderTodoBadge() { /* значок на вкладке обновляет drawNotes */ }
+function renderCrm() {
+  const cnt = k => notes.filter(n => (n.s || 'new') === k).length;
+  const contacted = notes.length - cnt('new'), answered = cnt('reply') + cnt('deal');
+  $('#kpis').innerHTML = [[contacted, 'написал'], [answered, 'ответили'], [cnt('deal'), 'договорились']]
+    .map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+  const max = Math.max(1, ...STATUSES.map(([k]) => cnt(k)));
+  $('#funnel').innerHTML = STATUSES.map(([k, l]) => `<div class="fr"><span>${l}</span><div class="track"><div class="fill" style="width:${cnt(k) / max * 100}%;background:${BAR[k]}"></div></div><b>${cnt(k)}</b></div>`).join('');
+  $('#conv').textContent = contacted ? `ответили ${Math.round(answered / contacted * 100)}%` : '';
+  // кому написать сегодня
+  const due = notes.filter(isDue).sort((a, b) => a.r - b.r);
+  $('#todoN').textContent = due.length || '';
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  $('#todo').innerHTML = due.length ? due.map(n => `<div class="tcard" data-d="${n.d}">
+      <div><div class="nm">${esc(noteName(n))}</div><div class="sb">${stName(n.s)} · ${n.r < today0.getTime() ? 'просрочено с ' + fmtDay(n.r) : 'сегодня'}</div></div>
+      <div class="ta">${n.place ? '<button class="btn pri" type="button" data-t="write">Написать</button>' : ''}
+      <button class="btn" type="button" data-t="done" title="Отметить, что написали">Написал ✓</button>
+      <button class="mini" type="button" data-t="later" title="Напомнить завтра">Завтра</button></div></div>`).join('')
+    : `<p class="hint">${notes.length ? 'На сегодня всё. Отличная работа!' : 'Пока пусто. Откройте заведение на карте и нажмите «Написать» — оно появится здесь с напоминанием.'}</p>`;
+  $('#todo').querySelectorAll('.tcard').forEach(card => card.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+    const n = notes.find(x => x.d === +card.dataset.d); if (!n) return;
+    if (b.dataset.t === 'write') { const p = n.place; if (p) { if (!places.has(p.id)) places.set(p.id, p); openMsg(places.get(p.id)); } return; }
+    if (b.dataset.t === 'later') { n.r = dayAt(1); toast('Напомню завтра'); }
+    if (b.dataset.t === 'done') {
+      n.sentAt = Date.now();
+      if (!n.s || n.s === 'new') n.s = 'sent';
+      if (n.s === 'sent') { n.r = dayAt(3); toast(`«${noteName(n)}»: напомню через 3 дня, если не ответят`); } else delete n.r;
+    }
+    card.classList.add('done');
+    saveNotes();
+    setTimeout(drawNotes, REDUCE ? 0 : 280);
+  }));
+  // сообщений за неделю (по дате «Написал»)
+  const days = [...Array(7)].map((_, i) => { const d = new Date(today0); d.setDate(d.getDate() - 6 + i); return d; });
+  const sentDays = notes.map(n => n.sentAt || (n.s && n.s !== 'new' ? n.d : 0)).filter(Boolean);
+  const per = days.map(d => sentDays.filter(t => t >= d.getTime() && t < d.getTime() + DAY).length);
+  const wmax = Math.max(1, ...per);
+  $('#week').innerHTML = per.map((v, i) => `<div class="wd${i === 6 ? ' today' : ''}"><small>${v || ''}</small><div class="b" style="height:${Math.max(3, v / wmax * 80)}px"></div></div>`).join('');
+  $('#wl').innerHTML = days.map((d, i) => `<span${i === 6 ? ' class="today"' : ''}>${i === 6 ? 'Сегодня' : d.toLocaleDateString('ru-RU', { weekday: 'short' })}</span>`).join('');
+  $('#weekSum').textContent = per.reduce((a, b) => a + b, 0) + ' за 7 дней';
+}
+
+/* ---------- профиль ---------- */
+const REM_KEY = 'tochka-remind';
+function renderProfile() {
+  document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
+  $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);
+  $('#swRem').setAttribute('aria-checked', store.get(REM_KEY, true));
+  $('#pTplSub').textContent = `${tpls.length} ${plural(tpls.length, ['шаблон', 'шаблона', 'шаблонов'])}${sign.trim() ? ' · подпись задана' : ' · без подписи'}`;
+  $('#pStats').textContent = `Заметок: ${notes.length} · Избранное: ${Object.keys(favs).length} · Свои места: ${Object.keys(mine).length} · Загружено заведений: ${places.size.toLocaleString('ru-RU')}`;
+}
+document.querySelectorAll('#theme [data-t]').forEach(b => b.onclick = () => setTheme(b.dataset.t));
+$('#sw3d').onclick = () => { $('#tilt').click(); setTimeout(renderProfile, 950); $('#sw3d').setAttribute('aria-checked', !(map.getPitch() > 5)); };
+$('#swRem').onclick = () => { const on = !store.get(REM_KEY, true); store.set(REM_KEY, on); $('#swRem').setAttribute('aria-checked', on); toast(on ? 'Напоминания включены' : 'Напоминания выключены'); };
+$('#pTpl').onclick = () => { msgPlace = null; $('#msTitle').textContent = 'Мои шаблоны и подпись'; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); $('#ms').hidden = false; };
+$('#pExport').onclick = () => $('#export').click();
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { $('#np').classList.remove('on'); closeSheet(); closeMsg(); closeAdd(); stopAdd(); }
+  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
-  if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); $('#q').focus(); }
+  if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });
 
 /* ---------- старт ---------- */
+document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
+measureDrawer(); setSnap(0, false); movePill();
+try { document.fonts.ready.then(movePill); } catch { /* старый браузер */ }
 drawNotes();
-{ const due = notes.filter(isDue).length; if (due) setTimeout(() => toast(`Пора написать: ${due}. Откройте блокнот`, 3200), 1500); }
+{ const due = notes.filter(isDue).length; if (due && store.get(REM_KEY, true)) setTimeout(() => toast(`Пора написать: ${due}. Откройте «Клиенты»`, 3200), 1500); }
 visible = [...places.values()];
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
