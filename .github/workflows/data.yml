@@ -1,5 +1,6 @@
-# Раз в неделю обновляет базу салонов (папка data/) из OpenStreetMap.
+# Раз в неделю обновляет базу салонов (папка data/) по всем регионам России из OpenStreetMap.
 # Запустить вручную: вкладка Actions → «Обновить базу салонов» → Run workflow.
+# Один запуск работает до ~4,5 часов; что не успел — обновит следующий (сначала самые старые регионы).
 name: Обновить базу салонов
 
 on:
@@ -22,7 +23,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -30,18 +31,27 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Скачать салоны из OpenStreetMap
-        run: python scripts/build_data.py
-
-      - name: Сохранить в репозиторий
+      - name: Настроить git
         run: |
           git config user.name "tochka-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Скачать салоны по регионам
+        timeout-minutes: 320
+        continue-on-error: true
+        env:
+          BUDGET_MIN: '270'
+          GIT_PUSH: '1'
+        run: python scripts/build_data.py
+
+      - name: Сохранить остаток в репозиторий
+        if: always()
+        run: |
           git add data
           if git diff --cached --quiet; then
             echo "Изменений нет"
           else
             git commit -m "База салонов: обновление $(date -u +%Y-%m-%d)"
-            git pull --rebase origin main
-            git push
+            git pull --rebase -X theirs origin main
+            git push origin HEAD:main
           fi

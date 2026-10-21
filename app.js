@@ -119,17 +119,43 @@ async function overpass(q) {
   throw lastErr;
 }
 
-/* ---------- своя база по городам (data/*.json, обновляется раз в неделю на GitHub) ---------- */
+/* ---------- своя база (data/*.json, обновляется раз в неделю на GitHub) ----------
+   Новый формат — по регионам России: у каждого региона список клеток 1°×1°, где есть заведения.
+   Старый формат — по городам с рамкой (s, w, n, e). Пока база пересобирается, понимаем оба. */
 const OSM_TYPES = { n: 'node', w: 'way', r: 'relation' };
-const dbCells = new Set();       // ячейки, которые уже покрыты базой — живой сервер для них не нужен
+const dbCells = new Set();       // ячейки 0,02° из старой базы городов — живой сервер для них не нужен
 const dbLoading = new Map();
-let dbIndex = [];
+let dbIndex = [], dbRegions = [];
+const cellRegions = new Map();   // «55:37» → регионы, у которых там есть заведения
+const cellKey = (lat, lon) => Math.floor(lat) + ':' + Math.floor(lon);
 const dbReady = fetch('data/index.json', { cache: 'no-cache' })
-  .then(r => r.ok ? r.json() : { cities: [] })
-  .then(d => { dbIndex = d.cities || []; })
-  .catch(() => { dbIndex = []; });
+  .then(r => r.ok ? r.json() : {})
+  .then(d => {
+    dbIndex = d.cities || [];
+    dbRegions = (d.regions || []).filter(r => r.count && r.cells);
+    for (const r of dbRegions) for (const k of r.cells) {
+      if (!cellRegions.has(k)) cellRegions.set(k, []);
+      cellRegions.get(k).push(r);
+    }
+  })
+  .catch(() => {});
 function dbCityAt(lat, lon) { return dbIndex.find(c => c.count && lat >= c.s && lat <= c.n && lon >= c.w && lon <= c.e); }
-function loadCityDb(c) {
+// регионы, которые нужны для видимой области (не дальше ~1° от центра)
+function dbRegionsNear(c, b) {
+  const S = Math.max(b.getSouth(), c.lat - 1), N = Math.min(b.getNorth(), c.lat + 1);
+  const W = Math.max(b.getWest(), c.lng - 1.6), E = Math.min(b.getEast(), c.lng + 1.6);
+  const out = new Set();
+  for (let la = Math.floor(S); la <= Math.floor(N); la++)
+    for (let lo = Math.floor(W); lo <= Math.floor(E); lo++)
+      for (const r of cellRegions.get(la + ':' + lo) || []) out.add(r);
+  return [...out];
+}
+// ячейка 0,02° покрыта базой, если загружены все регионы, у которых есть заведения в её клетке 1°
+function dbCovers(i, j) {
+  const rs = cellRegions.get(cellKey((i + .5) * CELL, (j + .5) * CELL));
+  return !!rs && rs.every(r => r.loadedOk);
+}
+function loadDb(c) {
   if (dbLoading.has(c.slug)) return dbLoading.get(c.slug);
   const pr = fetch(`data/${c.slug}.json?v=${encodeURIComponent(c.updated || '')}`)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -138,14 +164,16 @@ function loadCityDb(c) {
         const p = parseEl({ type: OSM_TYPES[id[0]] || 'node', id: id.slice(1), lat, lon, tags });
         if (p && !places.has(p.id)) { p.db = true; places.set(p.id, p); }
       }
-      for (let i = Math.ceil(c.s / CELL); i < Math.floor(c.n / CELL); i++)
-        for (let j = Math.ceil(c.w / CELL); j < Math.floor(c.e / CELL); j++) dbCells.add(i + ':' + j);
+      if (c.s != null) // старая база по городам
+        for (let i = Math.ceil(c.s / CELL); i < Math.floor(c.n / CELL); i++)
+          for (let j = Math.ceil(c.w / CELL); j < Math.floor(c.e / CELL); j++) dbCells.add(i + ':' + j);
       c.loadedOk = true;
     })
     .catch(() => { c.failedAt = Date.now(); dbLoading.delete(c.slug); });
   dbLoading.set(c.slug, pr);
   return pr;
 }
+const loadCityDb = loadDb;
 
 let loading = false, pending = false;
 async function loadView() {
@@ -154,13 +182,18 @@ async function loadView() {
   try {
     await dbReady;
     const c = map.getCenter();
-    // 1) город из своей базы — грузится одним файлом, мгновенно, даже на мелком масштабе
-    const city = map.getZoom() >= 9 ? dbCityAt(c.lat, c.lng) : null;
-    if (city && !city.loadedOk && !(city.failedAt > Date.now() - 60000)) {
-      setStatus(`Загружаю базу: ${city.name}…`);
-      await loadCityDb(city);
-      setStatus('');
-      if (city.loadedOk) applyFilter();
+    // 1) своя база — регионы (или города старой базы) грузятся целым файлом, даже на мелком масштабе
+    if (map.getZoom() >= 8) {
+      const fresh = x => !x.loadedOk && !(x.failedAt > Date.now() - 60000);
+      const need = dbRegionsNear(c, map.getBounds()).filter(fresh);
+      const city = dbCityAt(c.lat, c.lng);
+      if (city && fresh(city) && !dbCovers(Math.floor(c.lat / CELL), Math.floor(c.lng / CELL))) need.push(city);
+      if (need.length) {
+        setStatus(`Загружаю базу: ${need.slice(0, 2).map(x => x.name).join(', ')}${need.length > 2 ? ' и ещё ' + (need.length - 2) : ''}…`);
+        await Promise.all(need.map(loadDb));
+        setStatus('');
+        if (need.some(x => x.loadedOk)) applyFilter();
+      }
     }
     if (map.getZoom() < MIN_LOAD_ZOOM) { setStatus(visibleInView().length ? '' : 'Приблизьте карту, чтобы загрузить заведения'); return; }
     // 2) всё, что вне базы, — живьём с сервера OpenStreetMap (только область вокруг центра)
@@ -171,7 +204,7 @@ async function loadView() {
     for (let i = Math.floor(S / CELL); i <= Math.floor(N / CELL); i++)
       for (let j = Math.floor(W / CELL); j <= Math.floor(E / CELL); j++) {
         const k = i + ':' + j;
-        if (!loadedCells.has(k) && !dbCells.has(k)) missing.push([i, j, k]);
+        if (!loadedCells.has(k) && !dbCells.has(k) && !dbCovers(i, j)) missing.push([i, j, k]);
       }
     if (!missing.length) { setStatus(''); return; }
     const s = Math.min(...missing.map(m => m[0])) * CELL, n = (Math.max(...missing.map(m => m[0])) + 1) * CELL;
