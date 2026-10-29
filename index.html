@@ -109,6 +109,7 @@
       <div class="plist">
         <button class="pi pi-pro" type="button" id="pPro"><span><b>Подписка</b><small id="pProSub"></small></span><span class="chev">›</span></button>
         <button class="pi" type="button" id="pAcc"><span>Аккаунт<small id="pAccSub"></small></span><span class="chev">›</span></button>
+        <button class="pi pi-adm" type="button" id="pAdm" hidden><span><b>Админ-панель</b><small id="pAdmSub">Пользователи, подписки, доход</small></span><span class="chev">›</span></button>
         <div class="pi"><span>Тема</span>
           <div class="seg" role="group" aria-label="Тема" id="theme">
             <button type="button" data-t="auto" aria-pressed="true">Авто</button><button type="button" data-t="light" aria-pressed="false">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button>
@@ -184,6 +185,22 @@
     <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark">PRO</span> Подписка</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
     <div class="acc-box" id="accBox"></div>
     <div class="ms-acts" id="accActs"></div>
+  </div>
+</div>
+
+<!-- админ-панель: видна и работает только для почты владельца (проверка на сервере) -->
+<div class="sheet" id="adm" hidden>
+  <div class="sheet-card adm-card" role="dialog" aria-labelledby="admTitle">
+    <div class="sheet-h"><h3 id="admTitle">Админ-панель</h3><button class="x" id="admx" type="button" aria-label="Закрыть">×</button></div>
+    <div class="adm-stats" id="admStats"></div>
+    <div class="adm-tools">
+      <input id="admQ" type="search" placeholder="Поиск по почте" aria-label="Поиск по почте" autocomplete="off">
+      <div class="seg" role="group" aria-label="Показать" id="admF">
+        <button type="button" data-f="all" aria-pressed="true">Все</button><button type="button" data-f="paid" aria-pressed="false">Платят</button><button type="button" data-f="trial" aria-pressed="false">Пробный</button><button type="button" data-f="off" aria-pressed="false">Нет</button>
+      </div>
+    </div>
+    <div class="adm-list" id="admList"><p class="small">Загружаю…</p></div>
+    <div class="ms-acts"><button class="btn" type="button" id="admRefresh">Обновить</button><button class="btn" type="button" id="admCopy">Скопировать почты</button></div>
   </div>
 </div>
 

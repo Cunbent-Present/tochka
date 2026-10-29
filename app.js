@@ -591,7 +591,7 @@ const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') 
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
 let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
 let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
-const isPro = () => !authOn() || !!(session && acct && acct.state !== 'expired' && acct.until > Date.now());
+const isPro = () => !authOn() || !!(session && acct && (acct.admin || (acct.state !== 'expired' && acct.until > Date.now())));
 const fmtDate = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 const daysLeft = t => Math.max(0, Math.ceil((t - Date.now()) / DAY));
 
@@ -640,13 +640,15 @@ async function loadStatus() {
     const now = Date.now();
     acct = paid > now ? { state: 'active', until: paid } : trialUntil > now ? { state: 'trial', until: trialUntil } : { state: 'expired', until: Math.max(paid, trialUntil) };
     acct.email = session.user.email; acct.checked = now; acct.paid = paid > 0;
+    // админ ли это (решает сервер по почте из токена; если функции на сервере нет — просто нет)
+    try { acct.admin = (await api('/rest/v1/rpc/tochka_is_admin', { method: 'POST', body: {}, token: t })) === true; } catch { acct.admin = false; }
     store.set(ACCT_KEY, acct);
   } catch (e) { console.warn('Статус подписки не обновился:', e.message); }   // без сети — живём по последнему известному статусу
   applyAccess();
 }
 function signOut(silent) {
   session = null; acct = null; store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
-  closePro(); applyAccess();
+  closePro(); closeAdmin(); admRows = []; applyAccess();
   if (!silent) toast('Вы вышли из аккаунта');
 }
 function orderText() {
@@ -746,6 +748,64 @@ function openPro() {
   $('#pro').hidden = false;
 }
 function closePro() { $('#pro').hidden = true; }
+
+/* админ-панель: все аккаунты, статусы, продление. Данные отдаёт только сервер и только админу. */
+let admRows = [], admFilter = 'all', admArm = '';
+const admState = r => {
+  const now = Date.now(), paid = r.paid_until ? Date.parse(r.paid_until) : 0, trial = Date.parse(r.created_at) + PLAN.trialDays * DAY;
+  return paid > now ? { k: 'paid', t: `Платит · до ${fmtDate(paid)}` } : trial > now ? { k: 'trial', t: `Пробный · до ${fmtDate(trial)}` } : { k: 'off', t: paid ? `Не продлил · был до ${fmtDate(paid)}` : 'Пробный закончился' };
+};
+const ago = t => { if (!t) return 'не входил'; const d = Math.floor((Date.now() - Date.parse(t)) / DAY); return d <= 0 ? 'сегодня' : d === 1 ? 'вчера' : `${d} ${plural(d, ['день', 'дня', 'дней'])} назад`; };
+async function loadAdmin() {
+  $('#admList').innerHTML = '<p class="small">Загружаю…</p>';
+  try {
+    const t = await token();
+    admRows = (await api('/rest/v1/rpc/admin_users', { method: 'POST', body: {}, token: t })) || [];
+    drawAdmin();
+  } catch (e) {
+    $('#admStats').innerHTML = '';
+    $('#admList').innerHTML = `<p class="small">${/NOT_ADMIN/.test(e.message) ? 'Нет прав администратора.' : /Could not find|404/.test(e.message + e.status) ? 'На сервере ещё не установлена админ-панель: запустите admin_setup.sql в Supabase.' : 'Не получилось загрузить: ' + esc(e.message)}</p>`;
+  }
+}
+function drawAdmin() {
+  const now = Date.now(), week = now - 7 * DAY;
+  const st = admRows.map(r => ({ r, s: admState(r) }));
+  const n = k => st.filter(x => x.s.k === k).length;
+  const fresh = admRows.filter(r => Date.parse(r.created_at) > week).length;
+  const active = admRows.filter(r => r.last_sign_in_at && Date.parse(r.last_sign_in_at) > week).length;
+  const tiles = [['Всего', admRows.length], ['Платят', n('paid')], ['Пробный', n('trial')], ['Доход в месяц', (n('paid') * PLAN.price).toLocaleString('ru-RU') + ' ₽'], ['Новые за 7 дней', fresh], ['Заходили за 7 дней', active]];
+  $('#admStats').innerHTML = tiles.map(([l, v]) => `<div class="adm-tile"><b>${v}</b><span>${l}</span></div>`).join('');
+  const q = norm($('#admQ').value.trim());
+  const list = st.filter(x => (admFilter === 'all' || x.s.k === admFilter) && (!q || norm(x.r.email).includes(q)));
+  $('#admList').innerHTML = list.length ? list.map(({ r, s }) => `<div class="adm-row">
+      <div class="adm-main"><b>${esc(r.email)}</b><span class="adm-st st-${s.k}">${s.t}</span>
+      <span class="small">Регистрация ${fmtDate(Date.parse(r.created_at))} · вход ${ago(r.last_sign_in_at)}</span></div>
+      <div class="adm-acts"><button class="btn pri" type="button" data-ext="${r.user_id}" data-m="1">+1 мес</button>${s.k === 'paid' ? `<button class="btn" type="button" data-ext="${r.user_id}" data-m="0">${admArm === r.user_id ? 'Точно?' : 'Отключить'}</button>` : ''}</div>
+    </div>`).join('') : `<p class="small">${admRows.length ? 'Ничего не найдено' : 'Пока никто не зарегистрировался'}</p>`;
+}
+function openAdmin() { $('#adm').hidden = false; admArm = ''; loadAdmin(); }
+function closeAdmin() { $('#adm').hidden = true; }
+$('#admx').onclick = closeAdmin;
+$('#adm').addEventListener('click', async e => {
+  if (e.target.id === 'adm') return closeAdmin();
+  const f = e.target.closest('[data-f]');
+  if (f) { admFilter = f.dataset.f; document.querySelectorAll('#admF [data-f]').forEach(b => b.setAttribute('aria-pressed', b === f)); return drawAdmin(); }
+  const b = e.target.closest('[data-ext]');
+  if (!b) return;
+  const id = b.dataset.ext, months = +b.dataset.m;
+  if (months === 0 && admArm !== id) { admArm = id; return drawAdmin(); }   // отключение — со второго нажатия
+  admArm = ''; b.disabled = true;
+  try {
+    const until = await api('/rest/v1/rpc/admin_extend', { method: 'POST', body: { target: id, months }, token: await token() });
+    const row = admRows.find(r => r.user_id === id); if (row) row.paid_until = until;
+    drawAdmin();
+    toast(months ? `Подписка продлена до ${fmtDate(Date.parse(until))}` : 'Подписка отключена', 2600);
+    if (session && id === session.user.id) loadStatus();
+  } catch (err) { b.disabled = false; toast('Не получилось: ' + err.message, 3000); }
+});
+$('#admQ').addEventListener('input', drawAdmin);
+$('#admRefresh').onclick = loadAdmin;
+$('#admCopy').onclick = () => copy(admRows.map(r => r.email).join('\n'), `Скопировано почт: ${admRows.length}`);
 $('#prox').onclick = closePro;
 $('#pro').addEventListener('click', e => { if (e.target.id === 'pro') closePro(); });
 
@@ -1285,6 +1345,7 @@ function renderProfile() {
     : acct.state === 'trial' ? `Пробный период · осталось ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])}` : 'Закончилась — продлите';
   $('#pAcc').hidden = !authOn();
   $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
+  $('#pAdm').hidden = !(authOn() && session && acct && acct.admin);
   document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
   $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);
   $('#swRem').setAttribute('aria-checked', store.get(REM_KEY, true));
@@ -1298,9 +1359,10 @@ $('#pTpl').onclick = () => { if (needPro('tpl')) return; msgPlace = null; $('#ms
 $('#pExport').onclick = () => $('#export').click();
 $('#pPro').onclick = () => openPro();
 $('#pAcc').onclick = () => openPro();
+$('#pAdm').onclick = () => openAdmin();
 document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b) openPro(); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); }
+  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });

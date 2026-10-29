@@ -389,3 +389,22 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 .price-card span:last-child{color:var(--muted)}
 .btn:disabled{opacity:.6;cursor:progress}
 .acc-box{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);line-height:1.45}
+
+/* админ-панель */
+.pi-adm b{color:var(--accent)}
+.adm-card{max-width:620px}
+.adm-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.adm-tile{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px;min-width:0}
+.adm-tile b{font-size:20px;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.adm-tile span{font-size:12px;color:var(--muted)}
+.adm-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.adm-tools input{flex:1 1 180px;min-width:0;height:40px;border-radius:11px;border:1px solid var(--line);background:var(--soft);padding:0 12px;font-size:16px;color:var(--fg)}
+.adm-list{display:grid;gap:0;border-top:1px solid var(--line)}
+.adm-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.adm-main{display:grid;gap:3px;min-width:0}
+.adm-main b{font-size:14.5px;overflow-wrap:anywhere}
+.adm-st{font-size:12.5px;font-weight:600}
+.st-paid{color:#2E9D57}.st-trial{color:#C98A12}.st-off{color:var(--muted)}
+.adm-acts{display:flex;gap:6px;flex:none}
+.adm-acts .btn{padding:7px 10px;font-size:13px}
+@media (max-width:480px){.adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.adm-row{flex-wrap:wrap}.adm-acts{width:100%}}
