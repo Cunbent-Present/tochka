@@ -25,7 +25,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
@@ -58,6 +58,7 @@ CITIES = [
     ("kaliningrad", "Калининград", 54.7104, 20.4522), ("vladivostok", "Владивосток", 43.1155, 131.8855),
 ]
 CITY_DAYS = 6          # город обновляется, если данным больше стольких дней
+REGION_DAYS = 6        # регион без пропусков обновляется не чаще, чем раз в столько дней
 # Регионы, где эти города: их собираем раньше остальных
 PRIORITY = ["RU-MOW", "RU-SPE", "RU-MOS", "RU-LEN", "RU-KDA", "RU-NVS", "RU-SVE", "RU-TA", "RU-NIZ",
             "RU-KYA", "RU-SAM", "RU-BA", "RU-ROS", "RU-OMS", "RU-VOR", "RU-PER", "RU-VGG", "RU-TYU",
@@ -270,7 +271,13 @@ def main():
     regions.sort(key=order)
 
     ok = fail = 0
+    now_s = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M")
+    fresh_after = (datetime.now(timezone.utc) - timedelta(days=REGION_DAYS)).strftime("%Y-%m-%dT%H:%M")
     for reg in regions:
+        d = done.get(reg["slug"])
+        if d and not d.get("partial") and d.get("updated", "") > fresh_after:
+            print("Остальные регионы свежие — обновятся, когда им будет больше недели.", flush=True)
+            break   # список отсортирован от старых к свежим — дальше только свежие
         if (time.time() - started) / 60 > BUDGET_MIN:
             print("Время запуска вышло — остальные регионы обновятся в следующий раз.", flush=True)
             break
