@@ -1,0 +1,25 @@
+# Не даёт бесплатному проекту Supabase уснуть: раз в 2 дня делает маленький запрос к базе.
+# (Supabase ставит бесплатные проекты на паузу после недели без активности — тогда вход в Точку перестаёт работать.)
+name: Не дать Supabase уснуть
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 */2 * *'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Запрос к базе
+        env:
+          URL: https://aficnrxwryphxdgjmyfx.supabase.co
+          KEY: sb_publishable_jxAB9uHvaD7-Tp_qkdgGiQ_tQswTA_2
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/allowed_domains?select=domain&limit=1" -H "apikey: $KEY")
+          echo "Ответ базы: $code"
+          curl -s -o /dev/null -w "Auth: %{http_code}\n" "$URL/auth/v1/health" -H "apikey: $KEY"
+          if [ "$code" -ge 500 ] || [ "$code" = "000" ]; then
+            echo "::error::Supabase не отвечает — возможно, проект на паузе. Открой supabase.com и нажми «Возобновить проект»."
+            exit 1
+          fi
