@@ -575,7 +575,7 @@ function deleteMine(id) {
 const AUTH = {
   url: 'https://aficnrxwryphxdgjmyfx.supabase.co',             // адрес проекта Supabase
   anon: 'sb_publishable_jxAB9uHvaD7-Tp_qkdgGiQ_tQswTA_2',     // публичный ключ (его можно хранить в коде)
-  live: false         // false — вход включён только в режиме проверки (ссылка …/tochka/?test-login); true — для всех
+  live: true          // false — вход включён только в режиме проверки (ссылка …/tochka/?test-login); true — для всех
 };
 // режим проверки: открыть Точку по ссылке с ?test-login (выключить — ?test-login=off)
 try {
