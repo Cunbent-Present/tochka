@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  issues: write      # чтобы один раз написать «вся Россия собрана» (GitHub пришлёт это на почту)
 
 concurrency:
   group: data
@@ -55,3 +56,27 @@ jobs:
             git pull --rebase -X theirs origin main
             git push origin HEAD:main
           fi
+
+      - name: Сообщить на почту, когда собрана вся Россия
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY' > summary.txt || exit 0
+          import json, sys
+          d = json.load(open("data/index.json", encoding="utf-8"))
+          if not d.get("complete"):
+              sys.exit(1)
+          rs = d.get("regions", [])
+          print(f"@${{ github.repository_owner }} База Точки собрана по всей России!\n")
+          print(f"Регионов: {len(rs)} · заведений: {d.get('total', 0):,}".replace(",", " "))
+          print("\nСамые большие регионы:")
+          for r in rs[:10]:
+              print(f"- {r['name']}: {r['count']}")
+          print("\nДальше база обновляется сама: каждый регион раз в неделю.")
+          PY
+          if gh issue list --state all --label base-complete --json number --jq 'length' | grep -qv '^0$'; then
+            echo "Уже сообщали"; exit 0
+          fi
+          gh label create base-complete --color 2E9D57 --description "База собрана по всей России" 2>/dev/null || true
+          gh issue create --title "✅ База Точки собрана по всей России" --body-file summary.txt --label base-complete

@@ -311,6 +311,12 @@ def main():
             push_progress(f"База салонов: {len(done)} регионов ({datetime.now(timezone.utc):%Y-%m-%d})")
         time.sleep(PAUSE)
 
+    # отметка «вся Россия собрана»: все регионы из OSM есть в базе и ни один не недокачан
+    all_slugs = {r["slug"] for r in regions}
+    idx["complete"] = all_slugs <= set(done) and not any(done[s].get("partial") for s in all_slugs)
+    idx["regions_total"] = len(all_slugs)
+    save_index(idx)
+
     push_progress(f"База салонов: {len(done)} регионов ({datetime.now(timezone.utc):%Y-%m-%d})")
     print(f"Готово за {round((time.time() - started) / 60)} мин: обновлено {ok}, ошибок {fail}, "
           f"в базе {len(done)} регионов, {idx.get('total', 0)} заведений", flush=True)
