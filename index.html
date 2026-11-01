@@ -206,17 +206,44 @@
   </div>
 </div>
 
-<!-- экран входа и оплаты: закрывает приложение, пока нет аккаунта или подписки -->
+<!-- первый запуск: «Начать» и пара вопросов, без регистрации -->
+<div class="gate" id="hello" hidden>
+  <div class="gate-card" role="dialog" aria-labelledby="helloTitle" aria-modal="true">
+    <div class="gate-brand"><i></i>Точка</div>
+    <div class="g-step" data-hs="0">
+      <h2 id="helloTitle">Найдите клиентов на сайты</h2>
+      <p class="g-lead">Карта салонов, барбершопов и маникюра по всей России. Сразу видно, у кого <b>нет сайта</b> — им и можно его предложить.</p>
+      <button class="btn pri big" type="button" id="hStart">Начать</button>
+      <p class="small">Без регистрации. Смотрите карту сколько угодно.</p>
+    </div>
+    <div class="g-step" data-hs="1" hidden>
+      <span class="small h-n">Вопрос 1 из 2</span>
+      <h2>Кого ищем?</h2>
+      <div class="h-opts" id="hCats"></div>
+      <label class="g-check"><input type="checkbox" id="hNoSite" checked> <span>Показывать только тех, у кого нет своего сайта</span></label>
+      <button class="btn pri big" type="button" id="hNext">Дальше</button>
+    </div>
+    <div class="g-step" data-hs="2" hidden>
+      <span class="small h-n">Вопрос 2 из 2</span>
+      <h2>Где ищем?</h2>
+      <div class="h-opts" id="hCities"></div>
+      <button class="btn pri big" type="button" id="hGo">Показать на карте</button>
+    </div>
+  </div>
+</div>
+
+<!-- вход и оплата: появляется, когда нажимают на платную функцию -->
 <div class="gate" id="gate" hidden>
   <div class="gate-card" role="dialog" aria-labelledby="gateTitle" aria-modal="true">
+    <button class="x g-x" type="button" id="gX" aria-label="Закрыть">×</button>
     <div class="gate-brand"><i></i>Точка</div>
     <!-- шаг 1: почта -->
     <form id="gEmail" class="g-step" novalidate>
-      <h2 id="gateTitle">Найдите клиентов на сайты</h2>
-      <p class="g-lead">Салоны и барбершопы по всей России, потенциал клиента, шаблоны сообщений и воронка. <b>3 дня бесплатно</b>, дальше <b id="gPrice">290 ₽ в месяц</b>.</p>
+      <h2 id="gateTitle">Контакты и шаблоны — в Pro</h2>
+      <p class="g-lead">Телефоны и соцсети заведений, шаблоны сообщений, блокнот и воронка. <b id="gTrial">1 день бесплатно</b>, дальше <b id="gPrice">290 ₽ в месяц</b>.</p>
       <label class="fld">Ваша почта<input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="name@yandex.ru" required></label>
       <label class="g-check"><input type="checkbox" id="gAgree" required> <span>Соглашаюсь с <a href="privacy.html" target="_blank" rel="noopener">политикой конфиденциальности</a> и обработкой моей почты</span></label>
-      <button class="btn pri big" type="submit" id="gSend">Получить код на почту</button>
+      <button class="btn pri big" type="submit" id="gSend">Попробовать бесплатно</button>
       <p class="small g-msg" id="gMsg1" role="status"></p>
       <p class="small">Подходят обычные почтовые ящики: Яндекс, Mail.ru, Gmail, Рамблер, iCloud, Outlook. Один аккаунт на человека.</p>
     </form>

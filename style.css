@@ -369,7 +369,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
   background:color-mix(in srgb,var(--bg) 72%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1);
   padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(20px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.gate-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--deep);padding:22px;display:grid;gap:14px;animation:rise .4s cubic-bezier(.2,.9,.25,1.1)}
+.gate-card{position:relative;width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--deep);padding:22px;display:grid;gap:14px;animation:rise .4s cubic-bezier(.2,.9,.25,1.1)}
 .gate-brand{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:-.02em}
 .gate-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
 .g-step{display:grid;gap:12px}
@@ -387,6 +387,13 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 .price-card{display:flex;align-items:baseline;gap:8px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--gold) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--gold) 40%,transparent)}
 .price-card .price{font-family:var(--f-display);font-weight:500;font-size:34px;letter-spacing:-.02em}
 .price-card span:last-child{color:var(--muted)}
+.g-x{position:absolute;top:14px;right:14px}
+/* первый запуск */
+.h-n{color:var(--accent);font-weight:600}
+.h-opts{display:flex;flex-wrap:wrap;gap:8px}
+/* контакты в карточке без Pro */
+.lockv{display:grid;gap:6px;justify-items:start}
+.lockv .blur{filter:blur(4px);user-select:none;color:var(--muted)}
 .btn:disabled{opacity:.6;cursor:progress}
 .acc-box{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);line-height:1.45}
 

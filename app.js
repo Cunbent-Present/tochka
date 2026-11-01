@@ -567,7 +567,9 @@ function deleteMine(id) {
   places.delete(id); closeCard(); applyFilter(); toast('Заведение удалено');
 }
 
-/* ---------- Аккаунт, 3 дня бесплатно, потом подписка 290 ₽/мес ----------
+/* ---------- Аккаунт: карта без входа, Pro — 1 день бесплатно, потом подписка 290 ₽/мес ----------
+   Без входа открыта карта, список и фильтры. Контакты, «Написать», шаблоны, блокнот, воронка и экспорт —
+   только в Pro: при нажатии на них needPro() показывает вход по почте или оплату.
    Сервер — Supabase: вход по коду из письма, дата регистрации и оплаченный срок хранятся там,
    поэтому очистка браузера не даёт новых бесплатных дней. Повторные аккаунты (та же почта с «+»,
    точки в Gmail, одноразовые ящики) отсекает сам сервер — см. supabase_setup.sql у продавца.
@@ -585,7 +587,7 @@ try {
     history.replaceState(null, '', location.pathname + location.hash);
   }
 } catch { /* без хранилища — просто без режима проверки */ }
-const PLAN = { price: 290, trialDays: 3, tg: 'cunbent' };
+const PLAN = { price: 290, trialDays: 1, tg: 'cunbent' };
 const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
 const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') === '1'; } catch { return false; } })();
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
@@ -668,17 +670,24 @@ function showGate(step) {
     $('#gBuy').href = `https://t.me/${PLAN.tg}`;
     document.querySelectorAll('.gTg').forEach(x => x.textContent = '@' + PLAN.tg);
   }
-  if (step === 'email') setTimeout(() => $('#gMail').focus(), 60);
+  if (step === 'email') {
+    $('#gTrial').textContent = `${PLAN.trialDays} ${plural(PLAN.trialDays, ['день', 'дня', 'дней'])} бесплатно`;
+    setTimeout(() => $('#gMail').focus(), 60);
+  }
   if (step === 'code') setTimeout(() => $('#gOtp').focus(), 60);
 }
 function hideGate() { $('#gate').hidden = true; gateStep = ''; document.body.classList.remove('gated'); }
+$('#gX').onclick = hideGate;
+$('#gate').addEventListener('click', e => { if (e.target.id === 'gate') hideGate(); });
+// окно входа/оплаты само не открывается — только из needPro(); здесь лишь закрываем его или ведём дальше
+let wasPro = isPro();
 function applyAccess() {
   document.documentElement.classList.toggle('is-pro', authOn() && isPro());
-  if (!authOn()) hideGate();
-  else if (!session) { if (gateStep !== 'code') showGate('email'); }
-  else if (!isPro()) showGate('pay');
-  else hideGate();
+  if (!authOn() || isPro()) hideGate();
+  else if (session && gateStep) showGate('pay');   // вошёл, но пробный период уже закончился
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
+  // доступ изменился — открыть или спрятать контакты в открытой карточке
+  if (wasPro !== isPro()) { wasPro = isPro(); try { if (sel) select(sel); } catch { /* карта ещё не готова */ } }
 }
 $('#gPrice').textContent = `${PLAN.price} ₽ в месяц`;
 let mailTo = '', resendAt = 0;
@@ -728,11 +737,12 @@ $('#gCheck').onclick = async () => {
 $('#gOut').onclick = () => signOut();
 
 /* окно «Подписка» из профиля */
-function needPro() { if (isPro()) return false; applyAccess(); return true; }
+function needPro() { if (isPro()) return false; showGate(session ? 'pay' : 'email'); return true; }
 function openPro() {
+  if (authOn() && !session) return showGate('email');
   const box = $('#accBox'), acts = $('#accActs');
   if (!authOn()) {
-    box.innerHTML = `<b>Бета-версия</b><span class="small">Сейчас всё в Точке бесплатно. Скоро появится вход по почте: 3 дня бесплатно, дальше ${PLAN.price} ₽ в месяц.</span>`;
+    box.innerHTML = `<b>Бета-версия</b><span class="small">Сейчас всё в Точке бесплатно. Скоро появится вход по почте: ${PLAN.trialDays} ${plural(PLAN.trialDays, ['день', 'дня', 'дней'])} бесплатно, дальше ${PLAN.price} ₽ в месяц.</span>`;
     acts.innerHTML = '';
   } else {
     const st = acct && acct.state;
@@ -1032,6 +1042,15 @@ function select(id, fly) {
   ].filter(Boolean).join(' · ');
   const addr = [p.city, p.addr].filter(Boolean).join(', ');
   const l = lead(p);
+  const pro = isPro();
+  // без Pro показываем только, какие контакты есть, а сами номера и ссылки — после входа
+  const has = [p.phone && 'телефон', p.email && 'email', p.tg && 'Telegram', p.vk && 'VK', p.inst && 'Instagram'].filter(Boolean);
+  const contacts = pro ? `
+      ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
+      ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
+      ${soc ? row('Соцсети', soc) : ''}`
+    : row('Контакты', `<span class="lockv">${has.length ? `<span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>` : '<span class="small">не указаны</span>'}
+      <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>`);
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>
@@ -1040,18 +1059,16 @@ function select(id, fly) {
       <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div></div>
     <div class="rows">
       ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
-      ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
+      ${contacts}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
       ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}` : '<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>')}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
-      ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
-      ${soc ? row('Соцсети', soc) : ''}
       ${p.operator ? row('Компания', esc(p.operator)) : ''}
     </div>
     <div class="acts">
-      <button class="btn pri" type="button" id="write">Написать</button>
-      <button class="btn" type="button" id="tonote">В блокнот</button>
-      <button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>
+      <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
+      <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
+      ${pro ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
     </div>
     ${p.mine ? `<div class="mine-bar"><span>Это место добавили вы. Его видно только на этом устройстве.</span>
@@ -1063,7 +1080,7 @@ function select(id, fly) {
   $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
   // перезапуск «всплытия» карточки
   const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
-  $('#write').onclick = () => openMsg(p);
+  $('#write').onclick = () => { if (!needPro()) openMsg(p); };
   if (p.mine) {
     $('#medit').onclick = () => openAddForm(null, p);
     $('#mdel').onclick = e => {
@@ -1072,7 +1089,7 @@ function select(id, fly) {
       else { b.dataset.sure = '1'; b.textContent = 'Точно удалить?'; b.classList.add('danger'); setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Удалить'; b.classList.remove('danger'); } }, 4000); }
     };
   }
-  $('#tonote').onclick = () => { notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
+  $('#tonote').onclick = () => { if (needPro()) return; notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
   drawList();
 }
 function closeCard() {
@@ -1360,12 +1377,36 @@ $('#pExport').onclick = () => $('#export').click();
 $('#pPro').onclick = () => openPro();
 $('#pAcc').onclick = () => openPro();
 $('#pAdm').onclick = () => openAdmin();
-document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b) openPro(); });
+document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b && !needPro()) openPro(); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); }
+  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); hideGate(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });
+
+/* ---------- первый запуск: «Начать» и два вопроса ---------- */
+const HELLO_KEY = 'tochka-hello';
+let hCat = 'all', hCity = 0;   // hCity: индекс в CITIES, -1 — рядом со мной, -2 — другой город
+function helloStep(i) { document.querySelectorAll('#hello [data-hs]').forEach(s => s.hidden = +s.dataset.hs !== i); }
+function helloOpts(box, items, isOn, onPick) {
+  box.innerHTML = items.map(([v, label], i) => `<button type="button" class="chip" data-i="${i}" aria-pressed="${isOn(v)}">${esc(label)}</button>`).join('');
+  box.onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; onPick(items[+b.dataset.i][0]); box.querySelectorAll('[data-i]').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+}
+helloOpts($('#hCats'), [['all', 'Всех'], ...Object.entries(CATS).map(([k, v]) => [k, v.name])], v => v === hCat, v => hCat = v);
+helloOpts($('#hCities'), [[-1, '📍 Рядом со мной'], ...CITIES.slice(0, 7).map(([n], i) => [i, n]), [-2, 'Другой город…']], v => v === hCity, v => hCity = v);
+$('#hStart').onclick = () => helloStep(1);
+$('#hNext').onclick = () => helloStep(2);
+$('#hGo').onclick = () => {
+  store.set(HELLO_KEY, 1);
+  $('#hello').hidden = true;
+  const ci = ['all', ...Object.keys(CATS)].indexOf(hCat);
+  if (ci > 0) catChips[ci].click();
+  if ($('#hNoSite').checked !== noSite) chips.querySelector('.nosite').click();
+  if (hCity >= 0) { const [, la, lo] = CITIES[hCity]; flyToCity(la, lo); }
+  else if (hCity === -1) $('#loc').click();
+  else openSheet();
+};
+if (!store.get(HELLO_KEY, 0) && !session) $('#hello').hidden = false;
 
 /* ---------- старт ---------- */
 document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
