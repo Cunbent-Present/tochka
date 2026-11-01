@@ -43,6 +43,7 @@ jobs:
         env:
           BUDGET_MIN: '270'
           GIT_PUSH: '1'
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}   # контакты — на сервер, не в открытые файлы
         run: python scripts/build_data.py
 
       - name: Сохранить остаток в репозиторий

@@ -77,7 +77,7 @@ function parseEl(el) {
   const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
   if (lat == null || lon == null) return null;
   const street = t['addr:street'], house = t['addr:housenumber'], city = t['addr:city'];
-  return {
+  const p = {
     id: el.type[0] + el.id,
     osm: `https://www.openstreetmap.org/${el.type}/${el.id}`,
     name: t.name, cat: categorize(t), lat, lon,
@@ -90,6 +90,9 @@ function parseEl(el) {
     vk: t['contact:vk'] || '', tg: t['contact:telegram'] || '', inst: t['contact:instagram'] || '',
     operator: t.operator || ''
   };
+  // «*» в своей базе — контакт есть, но лежит на сервере и придёт только с Pro (withContacts)
+  if ([p.phone, p.email, p.vk, p.tg, p.inst].includes('*')) p.locked = true;
+  return p;
 }
 
 const places = new Map();
@@ -648,6 +651,23 @@ async function loadStatus() {
   } catch (e) { console.warn('Статус подписки не обновился:', e.message); }   // без сети — живём по последнему известному статусу
   applyAccess();
 }
+// контакты заведений из своей базы: сервер отдаёт их только с Pro (supabase/protect_contacts.sql)
+const contactsLoading = new Map();
+function withContacts(p) {
+  if (!p.locked) return Promise.resolve(p);
+  if (!contactsLoading.has(p.id)) contactsLoading.set(p.id, (async () => {
+    const rows = await api(`/rest/v1/place_contacts?select=phone,email,tg,vk,inst&id=eq.${encodeURIComponent(p.id)}`, { token: await token() });
+    if (!rows || !rows[0]) throw new Error('NO_ACCESS');   // строка есть у каждого «*», пусто — сервер не дал доступ
+    for (const k of ['phone', 'email', 'tg', 'vk', 'inst']) p[k] = rows[0][k] || '';
+    delete p.locked;
+    return p;
+  })().finally(() => contactsLoading.delete(p.id)));
+  return contactsLoading.get(p.id);
+}
+function contactsError(e) {
+  if (/NO_ACCESS/.test(e.message)) { loadStatus(); toast('Нет доступа к контактам — проверьте подписку', 3000); }
+  else toast('Не удалось загрузить контакты. Проверьте интернет.', 3000);
+}
 function signOut(silent) {
   session = null; acct = null; store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
   closePro(); closeAdmin(); admRows = []; applyAccess();
@@ -1045,7 +1065,8 @@ function select(id, fly) {
   const pro = isPro();
   // без Pro показываем только, какие контакты есть, а сами номера и ссылки — после входа
   const has = [p.phone && 'телефон', p.email && 'email', p.tg && 'Telegram', p.vk && 'VK', p.inst && 'Instagram'].filter(Boolean);
-  const contacts = pro ? `
+  if (pro && p.locked) withContacts(p).then(() => { if (sel === p.id) select(p.id); }, contactsError);
+  const contacts = pro && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : pro ? `
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}`
@@ -1068,7 +1089,7 @@ function select(id, fly) {
     <div class="acts">
       <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
       <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
-      ${pro ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
+      ${pro && !p.locked ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
     </div>
     ${p.mine ? `<div class="mine-bar"><span>Это место добавили вы. Его видно только на этом устройстве.</span>
@@ -1080,7 +1101,7 @@ function select(id, fly) {
   $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
   // перезапуск «всплытия» карточки
   const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
-  $('#write').onclick = () => { if (!needPro()) openMsg(p); };
+  $('#write').onclick = () => { if (!needPro()) withContacts(p).then(openMsg, contactsError); };
   if (p.mine) {
     $('#medit').onclick = () => openAddForm(null, p);
     $('#mdel').onclick = e => {
@@ -1089,7 +1110,10 @@ function select(id, fly) {
       else { b.dataset.sure = '1'; b.textContent = 'Точно удалить?'; b.classList.add('danger'); setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Удалить'; b.classList.remove('danger'); } }, 4000); }
     };
   }
-  $('#tonote').onclick = () => { if (needPro()) return; notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
+  $('#tonote').onclick = () => {
+    if (needPro()) return;
+    withContacts(p).then(() => { notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); }, contactsError);
+  };
   drawList();
 }
 function closeCard() {
@@ -1333,7 +1357,7 @@ function renderCrm() {
     : `<p class="hint">${notes.length ? 'На сегодня всё. Отличная работа!' : 'Пока пусто. Откройте заведение на карте и нажмите «Написать» — оно появится здесь с напоминанием.'}</p>`;
   $('#todo').querySelectorAll('.tcard').forEach(card => card.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +card.dataset.d); if (!n) return;
-    if (b.dataset.t === 'write') { const p = n.place; if (p) { if (!places.has(p.id)) places.set(p.id, p); openMsg(places.get(p.id)); } return; }
+    if (b.dataset.t === 'write') { const p = n.place; if (p && !needPro()) { if (!places.has(p.id)) places.set(p.id, p); withContacts(places.get(p.id)).then(openMsg, contactsError); } return; }
     if (b.dataset.t === 'later') { n.r = dayAt(1); toast('Напомню завтра'); }
     if (b.dataset.t === 'done') {
       n.sentAt = Date.now();

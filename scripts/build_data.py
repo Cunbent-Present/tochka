@@ -15,6 +15,12 @@
 
 Теги отдаются почти «как есть», а разбор (категория, адрес, телефон) делает
 сама Точка функцией parseEl — правила в одном месте.
+
+Контакты (телефон, почта, соцсети) в открытые файлы не попадают: они загружаются в таблицу
+place_contacts на Supabase (см. supabase/protect_contacts.sql), а в файле вместо них «*» —
+Точка видит, что контакт есть, а сам он приходит с сервера только тем, у кого Pro.
+Для этого нужен секрет SUPABASE_SECRET_KEY в настройках репозитория. Без него контакты
+остаются в файлах как раньше.
 Данные © участники OpenStreetMap, лицензия ODbL.
 """
 import json
@@ -23,6 +29,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -63,6 +70,12 @@ REGION_DAYS = 6        # регион без пропусков обновляе
 PRIORITY = ["RU-MOW", "RU-SPE", "RU-MOS", "RU-LEN", "RU-KDA", "RU-NVS", "RU-SVE", "RU-TA", "RU-NIZ",
             "RU-KYA", "RU-SAM", "RU-BA", "RU-ROS", "RU-OMS", "RU-VOR", "RU-PER", "RU-VGG", "RU-TYU",
             "RU-KGD", "RU-PRI", "RU-CHE"]
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://aficnrxwryphxdgjmyfx.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
+# тег OSM → столбец таблицы place_contacts
+SECRET = {"phone": "phone", "contact:phone": "phone", "email": "email", "contact:email": "email",
+          "contact:telegram": "tg", "contact:vk": "vk", "contact:instagram": "inst"}
+HIDDEN = "*"           # так в открытом файле помечен контакт, который лежит на сервере
 TILE = 2.0             # если регион не отдаётся целиком — качаем кусками по 2°×2° (при ошибке — по 1°)
 FILTER = ('nwr["shop"~"^(hairdresser|beauty|massage|tattoo)$"]{f};'
           'nwr["amenity"~"^(spa|massage)$"]{f};'
@@ -184,7 +197,7 @@ def build_cities(idx, started):
         except Exception as ex:
             print(f"  не удалось: {ex}", file=sys.stderr, flush=True)
             continue
-        rows = sorted((r for r in (compact(el) for el in data.get("elements", [])) if r), key=lambda r: r[0])
+        rows = protect(sorted((r for r in (compact(el) for el in data.get("elements", [])) if r), key=lambda r: r[0]))
         with open(os.path.join(OUT, f"{slug}.json"), "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
         have[slug] = {"slug": slug, "name": name, "lat": lat, "lon": lon, "s": s, "w": w, "n": n, "e": e,
@@ -207,6 +220,76 @@ def compact(el):
         return None
     t = {k: v for k, v in tags.items() if k in KEEP and v}
     return [el["type"][0] + str(el["id"]), round(lat, 6), round(lon, 6), t]
+
+
+def upload_contacts(items):
+    """Записывает контакты в place_contacts (новые добавляет, старые обновляет) пачками по 500."""
+    headers = {"apikey": SUPABASE_KEY, "Content-Type": "application/json",
+               "Prefer": "resolution=merge-duplicates,return=minimal", "User-Agent": UA}
+    if SUPABASE_KEY.startswith("eyJ"):  # старый ключ service_role — это JWT, его передают ещё и так
+        headers["Authorization"] = "Bearer " + SUPABASE_KEY
+    url = SUPABASE_URL.rstrip("/") + "/rest/v1/place_contacts?on_conflict=id"
+    for i in range(0, len(items), 500):
+        body = json.dumps(items[i:i + 500], ensure_ascii=False).encode()
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout=120):
+                    break
+            except urllib.error.HTTPError as e:
+                if e.code < 500 or attempt == 2:
+                    raise RuntimeError(f"Supabase {e.code}: {e.read().decode(errors='replace')[:300]}")
+            except Exception:
+                if attempt == 2:
+                    raise
+            time.sleep(5 * (attempt + 1))
+
+
+def protect(rows):
+    """Убирает контакты из строк файла и кладёт их на сервер. Если сервер недоступен — строки как были."""
+    if not SUPABASE_KEY:
+        return rows
+    items, out = [], []
+    for r in rows:
+        t = r[3]
+        found = {}
+        for tag, col in SECRET.items():
+            v = t.get(tag)
+            if v and v != HIDDEN:
+                found.setdefault(col, v)
+        if found:
+            items.append({"id": r[0], **{c: found.get(c) for c in ("phone", "email", "tg", "vk", "inst")}})
+            t = {k: (HIDDEN if k in SECRET else v) for k, v in t.items()}
+        out.append([r[0], r[1], r[2], t])
+    if not items:
+        return out
+    try:
+        upload_contacts(items)
+    except Exception as e:
+        print(f"  контакты не загрузились на сервер ({str(e)[:200]}) — оставляю их в файле", file=sys.stderr, flush=True)
+        return rows
+    return out
+
+
+def protect_existing():
+    """Один раз переносит контакты из уже собранных файлов на сервер (потом файлы уже чистые — быстро)."""
+    if not SUPABASE_KEY:
+        print("Секрета SUPABASE_SECRET_KEY нет — контакты остаются в файлах.", flush=True)
+        return
+    for name in sorted(os.listdir(OUT)):
+        if not name.endswith(".json") or name == "index.json":
+            continue
+        path = os.path.join(OUT, name)
+        with open(path, encoding="utf-8") as f:
+            rows = json.load(f)
+        if not any(v and v != HIDDEN for r in rows for k, v in r[3].items() if k in SECRET):
+            continue
+        clean = protect(rows)
+        if clean is rows:
+            continue
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(clean, f, ensure_ascii=False, separators=(",", ":"))
+        print(f"Контакты {name} перенесены на сервер", flush=True)
+    push_progress("База салонов: контакты перенесены на сервер")
 
 
 def cells_of(rows):
@@ -253,6 +336,7 @@ def main():
     started = time.time()
     os.makedirs(OUT, exist_ok=True)
     idx = load_index()
+    protect_existing()
     if os.environ.get("SKIP_CITIES") != "1":
         build_cities(idx, started)
     done = {r["slug"]: r for r in idx.get("regions", [])}
@@ -295,6 +379,7 @@ def main():
             print(f"  скачалось меньше прежнего ({len(rows)} < {old['count']}) — оставляю старые данные", flush=True)
             fail += 1
             continue
+        rows = protect(rows)
         with open(os.path.join(OUT, f"{reg['slug']}.json"), "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
         done[reg["slug"]] = {
