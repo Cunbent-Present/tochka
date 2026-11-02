@@ -26,6 +26,7 @@ place_contacts на Supabase (см. supabase/protect_contacts.sql), а в фай
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -71,8 +72,19 @@ PRIORITY = ["RU-MOW", "RU-SPE", "RU-MOS", "RU-LEN", "RU-KDA", "RU-NVS", "RU-SVE"
             "RU-KYA", "RU-SAM", "RU-BA", "RU-ROS", "RU-OMS", "RU-VOR", "RU-PER", "RU-VGG", "RU-TYU",
             "RU-KGD", "RU-PRI", "RU-CHE"]
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://aficnrxwryphxdgjmyfx.supabase.co")
-# strip — при вставке в GitHub Secrets к ключу легко прилипает перенос строки, и сервер его не примет
-SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+def secret_key(raw):
+    """Ключ из GitHub Secrets. При вставке туда легко прилипают лишние строки — берём сам ключ:
+    новый (sb_secret_…) или старый service_role (eyJ…). В журнал пишем только, что нашли, без ключа."""
+    if not raw.strip():
+        return ""
+    m = re.search(r"sb_secret_[A-Za-z0-9_\-]+|eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+", raw)
+    lines = len([x for x in raw.splitlines() if x.strip()])
+    kind = "нет ключа sb_secret_… или eyJ…" if not m else ("sb_secret_…" if m.group().startswith("sb_") else "service_role (eyJ…)")
+    print(f"Секрет SUPABASE_SECRET_KEY: строк {lines}, найден {kind}", flush=True)
+    return m.group() if m else raw.strip()
+
+
+SUPABASE_KEY = secret_key(os.environ.get("SUPABASE_SECRET_KEY", ""))
 upload_broken = ""     # если сервер отказал — до конца запуска контакты больше не шлём (и не ждём таймаутов)
 STARTED = time.time()
 # тег OSM → столбец таблицы place_contacts
