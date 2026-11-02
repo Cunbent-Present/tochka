@@ -1183,8 +1183,8 @@ function select(id, fly) {
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}`
-    : row('Контакты', `<span class="lockv">${has.length ? `<span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>` : '<span class="small">не указаны</span>'}
-      <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>`);
+    : row('Контакты', has.length ? `<span class="lockv"><span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>
+      <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>
