@@ -1,0 +1,3 @@
+# ЮKassa присылает уведомления без токена Supabase — для этой функции проверку токена отключаем
+[functions.yookassa-webhook]
+verify_jwt = false

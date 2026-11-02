@@ -122,6 +122,7 @@
         <button class="pi" type="button" id="pExport"><span>Экспорт в Excel<small>Все заметки и клиенты</small></span><span class="chev">›</span></button>
         <a class="pi" href="download.html" id="pDl"><span>Скачать приложение<small>Android, Windows, iPhone</small></span><span class="chev">›</span></a>
         <a class="pi" href="showcase.html"><span>Как выглядит Точка<small>Демо на телефоне и компьютере</small></span><span class="chev">›</span></a>
+        <button class="pi" type="button" id="pRev"><span>Отзывы<small>Почитать и оставить свой</small></span><span class="chev">›</span></button>
         <div class="pi"><span>Мои данные<small id="pStats"></small></span></div>
         <p class="small about">Данные о заведениях: © участники OpenStreetMap. Карта: OpenFreeMap. Блокнот, избранное и свои места хранятся только на этом устройстве.</p>
       </div>
@@ -190,11 +191,31 @@
   </div>
 </div>
 
+<!-- отзывы: на сайте видны одобренные, свой может оставить любой вошедший -->
+<div class="sheet" id="rv" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="rvTitle">
+    <div class="sheet-h"><h3 id="rvTitle">Отзывы</h3><button class="x" id="rvx" type="button" aria-label="Закрыть">×</button></div>
+    <div class="rv-sum" id="rvSum"></div>
+    <div class="rv-list" id="rvList"><p class="small">Загружаю…</p></div>
+    <form class="rv-form" id="rvForm" novalidate>
+      <h4 id="rvFormTitle">Ваш отзыв</h4>
+      <p class="small" id="rvState"></p>
+      <div class="rv-stars" id="rvStars" role="radiogroup" aria-label="Оценка"></div>
+      <label class="fld">Как вас подписать<input id="rvName" type="text" maxlength="40" placeholder="Например: Иван, веб-дизайнер" autocomplete="off"></label>
+      <label class="fld">Отзыв<textarea id="rvBody" rows="4" maxlength="1000" placeholder="Что понравилось, что улучшить, нашли ли клиентов"></textarea></label>
+      <p class="small g-msg" id="rvMsg" role="status"></p>
+      <div class="ms-acts"><button class="btn pri" type="submit" id="rvSend">Отправить на проверку</button></div>
+    </form>
+    <div class="ms-acts" id="rvLogin" hidden><button class="btn pri" type="button" id="rvSignIn">Войти, чтобы оставить отзыв</button></div>
+  </div>
+</div>
+
 <!-- админ-панель: видна и работает только для почты владельца (проверка на сервере) -->
 <div class="sheet" id="adm" hidden>
   <div class="sheet-card adm-card" role="dialog" aria-labelledby="admTitle">
     <div class="sheet-h"><h3 id="admTitle">Админ-панель</h3><button class="x" id="admx" type="button" aria-label="Закрыть">×</button></div>
     <div class="adm-stats" id="admStats"></div>
+    <div class="adm-rev" id="admRev"></div>
     <div class="adm-tools">
       <input id="admQ" type="search" placeholder="Поиск по почте" aria-label="Поиск по почте" autocomplete="off">
       <div class="seg" role="group" aria-label="Показать" id="admF">
@@ -214,7 +235,7 @@
       <h2 id="helloTitle">Найдите клиентов на сайты</h2>
       <p class="g-lead">Карта салонов, барбершопов и маникюра по всей России. Сразу видно, у кого <b>нет сайта</b> — им и можно его предложить.</p>
       <button class="btn pri big" type="button" id="hStart">Начать</button>
-      <p class="small">Без регистрации. Смотрите карту сколько угодно. Контакты и шаблоны — в Pro за 290 ₽ в месяц, <a href="oferta.html" target="_blank" rel="noopener">тарифы и оферта</a>.</p>
+      <p class="small">Без регистрации. Смотрите карту сколько угодно. Контакты и шаблоны — в Pro за 290 ₽ в месяц, <a href="oferta.html" target="_blank" rel="noopener">тарифы и оферта</a> · <a href="reviews.html" target="_blank" rel="noopener">отзывы</a>.</p>
     </div>
     <div class="g-step" data-hs="1" hidden>
       <span class="small h-n">Вопрос 1 из 2</span>
@@ -261,10 +282,11 @@
       <h2 id="gPayTitle">Пробный период закончился</h2>
       <p class="g-lead">Чтобы и дальше находить клиентов, оформите подписку.</p>
       <div class="price-card"><span class="price">290</span><span>₽ в месяц</span></div>
-      <a class="btn pri big" id="gBuy" href="https://t.me/cunbent" target="_blank" rel="noopener">
+      <button class="btn pri big" type="button" id="gBuy" hidden>Оплатить 290 ₽ — СБП или картой</button>
+      <a class="btn big" id="gTgBuy" href="https://t.me/cunbent" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.4 4.3 18.3 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-1 .5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L6.5 13 2 11.6c-1-.3-1-1 .2-1.5L20 3.3c.8-.3 1.6.2 1.4 1z"/></svg>
         Оплатить в Telegram</a>
-      <div class="pro-how"><span>Откроется чат <b class="gTg">@cunbent</b>, текст уже скопирован — вставьте и отправьте:</span><code id="gOrder"></code></div>
+      <div class="pro-how"><span id="gHow"></span><code id="gOrder"></code></div>
       <button class="btn" type="button" id="gCheck">Я оплатил — проверить</button>
       <p class="small g-msg" id="gMsg3" role="status"></p>
       <button class="linkbtn" type="button" id="gOut">Выйти из аккаунта</button>

@@ -590,7 +590,9 @@ try {
     history.replaceState(null, '', location.pathname + location.hash);
   }
 } catch { /* без хранилища — просто без режима проверки */ }
-const PLAN = { price: 290, trialDays: 1, tg: 'cunbent' };
+// yookassa: true — показывать оплату СБП/картой (когда ЮKassa одобрит магазин и в Supabase будут функции pay и
+// yookassa-webhook, см. ОПЛАТА.md). Оплата переводом через Telegram остаётся в любом случае.
+const PLAN = { price: 290, trialDays: 1, tg: 'cunbent', yookassa: false };
 const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
 const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') === '1'; } catch { return false; } })();
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
@@ -673,8 +675,36 @@ function signOut(silent) {
   closePro(); closeAdmin(); admRows = []; applyAccess();
   if (!silent) toast('Вы вышли из аккаунта');
 }
+// оплата переводом: человек пишет в Telegram, продавец продлевает подписку в админ-панели («+1 мес»)
 function orderText() {
   return `Здравствуйте! Хочу оплатить Точку Pro на месяц — ${PLAN.price} ₽. Почта аккаунта: ${session ? session.user.email : '—'}`;
+}
+const tgPayHow = () => PLAN.yookassa
+  ? `Удобнее переводом? Откроется чат @${PLAN.tg}, текст уже скопирован — вставьте и отправьте:`
+  : `Откроется чат @${PLAN.tg}, текст уже скопирован — вставьте и отправьте:`;
+// оплата через ЮKassa: сервер (supabase/functions/pay) создаёт платёж и даёт ссылку на страницу оплаты,
+// а месяц к подписке прибавляет supabase/functions/yookassa-webhook, когда ЮKassa подтвердит оплату
+async function startPay(btn) {
+  btn.disabled = true;
+  try {
+    const { url } = await api('/functions/v1/pay', { method: 'POST', body: {}, token: await token() });
+    store.set('tochka-pay-from', acct && acct.state === 'active' ? acct.until : 0);   // срок до оплаты — чтобы потом понять, что она пришла
+    location.href = url;
+  } catch (e) {
+    btn.disabled = false;
+    toast(/Failed to fetch|NetworkError|Load failed/i.test(e.message) ? 'Нет связи с сервером. Проверьте интернет.' : 'Не получилось начать оплату: ' + e.message, 3600);
+  }
+}
+// вернулись со страницы оплаты (…?paid=1): уведомление от ЮKassa приходит не сразу — несколько раз спрашиваем статус
+async function afterPay() {
+  toast('Проверяю оплату…', 2000);
+  const from = store.get('tochka-pay-from', 0) || 0;
+  for (let i = 0; i < 6; i++) {
+    await loadStatus();
+    if (acct && acct.state === 'active' && acct.until > from) return toast(`Спасибо! Подписка активна до ${fmtDate(acct.until)}`, 3600);
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  toast('Оплата ещё не пришла. Если деньги списались — нажмите «Обновить статус» через пару минут.', 5000);
 }
 
 /* экран входа / оплаты */
@@ -686,9 +716,12 @@ function showGate(step) {
   document.body.classList.add('gated');
   if (step === 'pay') {
     $('#gPayTitle').textContent = acct && acct.paid ? 'Подписка закончилась' : 'Пробный период закончился';
+    $('#gBuy').hidden = !PLAN.yookassa;
+    $('#gBuy').textContent = `Оплатить ${PLAN.price} ₽ — СБП или картой`;
+    $('#gTgBuy').classList.toggle('pri', !PLAN.yookassa);   // без ЮKassa Telegram — главная кнопка
+    $('#gTgBuy').href = `https://t.me/${PLAN.tg}`;
+    $('#gHow').textContent = tgPayHow();
     $('#gOrder').textContent = orderText();
-    $('#gBuy').href = `https://t.me/${PLAN.tg}`;
-    document.querySelectorAll('.gTg').forEach(x => x.textContent = '@' + PLAN.tg);
   }
   if (step === 'email') {
     $('#gTrial').textContent = `${PLAN.trialDays} ${plural(PLAN.trialDays, ['день', 'дня', 'дней'])} бесплатно`;
@@ -747,7 +780,8 @@ $('#gResend').onclick = () => {
   if (wait > 0) { $('#gMsg2').textContent = `Отправить ещё раз можно через ${wait} с.`; return; }
   $('#gMail').value = mailTo; showGate('email'); sendCode();
 };
-$('#gBuy').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
+$('#gBuy').onclick = () => startPay($('#gBuy'));
+$('#gTgBuy').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
 $('#gCheck').onclick = async () => {
   $('#gMsg3').textContent = 'Проверяю оплату…';
   await loadStatus();
@@ -768,10 +802,13 @@ function openPro() {
     const st = acct && acct.state;
     box.innerHTML = `<b>${st === 'active' ? `Подписка активна до ${fmtDate(acct.until)}` : st === 'trial' ? `Пробный период: ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])} — до ${fmtDate(acct.until)}` : 'Подписки нет'}</b>
       <span class="small">Аккаунт: ${esc(session ? session.user.email : '')}. Подписка работает на всех устройствах — войдите с этой почтой на телефоне и на компьютере.</span>
-      <span class="small">Продление: ${PLAN.price} ₽ в месяц, оплата в Telegram @${PLAN.tg}. Оплаченный месяц прибавляется к текущему сроку.</span>`;
-    acts.innerHTML = `<a class="btn pri" id="accBuy" href="https://t.me/${PLAN.tg}" target="_blank" rel="noopener">${st === 'active' ? 'Продлить' : 'Оплатить'} в Telegram</a>
+      <span class="small">Продление: ${PLAN.price} ₽ в месяц${PLAN.yookassa ? ' — через СБП, картой или переводом в Telegram' : `, оплата в Telegram @${PLAN.tg}`}. Оплаченный месяц прибавляется к текущему сроку.</span>`;
+    const verb = st === 'active' ? 'Продлить' : 'Оплатить';
+    acts.innerHTML = `${PLAN.yookassa ? `<button class="btn pri" type="button" id="accBuy">${verb} ${PLAN.price} ₽</button>` : ''}
+      <a class="btn${PLAN.yookassa ? '' : ' pri'}" id="accTg" href="https://t.me/${PLAN.tg}" target="_blank" rel="noopener">${verb} в Telegram</a>
       <button class="btn" type="button" id="accCheck">Обновить статус</button><button class="btn" type="button" id="accOut">Выйти</button>`;
-    $('#accBuy').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
+    if (PLAN.yookassa) $('#accBuy').onclick = () => startPay($('#accBuy'));
+    $('#accTg').addEventListener('click', () => copy(orderText(), 'Текст скопирован — вставьте его в чат'));
     $('#accCheck').onclick = async () => { await loadStatus(); openPro(); toast('Статус обновлён'); };
     $('#accOut').onclick = () => signOut();
   }
@@ -788,6 +825,7 @@ const admState = r => {
 const ago = t => { if (!t) return 'не входил'; const d = Math.floor((Date.now() - Date.parse(t)) / DAY); return d <= 0 ? 'сегодня' : d === 1 ? 'вчера' : `${d} ${plural(d, ['день', 'дня', 'дней'])} назад`; };
 async function loadAdmin() {
   $('#admList').innerHTML = '<p class="small">Загружаю…</p>';
+  loadAdmReviews();
   try {
     const t = await token();
     admRows = (await api('/rest/v1/rpc/admin_users', { method: 'POST', body: {}, token: t })) || [];
@@ -820,6 +858,8 @@ $('#adm').addEventListener('click', async e => {
   if (e.target.id === 'adm') return closeAdmin();
   const f = e.target.closest('[data-f]');
   if (f) { admFilter = f.dataset.f; document.querySelectorAll('#admF [data-f]').forEach(b => b.setAttribute('aria-pressed', b === f)); return drawAdmin(); }
+  const rv = e.target.closest('[data-rv]');
+  if (rv) return moderateReview(rv);
   const b = e.target.closest('[data-ext]');
   if (!b) return;
   const id = b.dataset.ext, months = +b.dataset.m;
@@ -833,6 +873,76 @@ $('#adm').addEventListener('click', async e => {
     if (session && id === session.user.id) loadStatus();
   } catch (err) { b.disabled = false; toast('Не получилось: ' + err.message, 3000); }
 });
+/* отзывы (supabase/reviews.sql): одобренные видны всем, свой пишет вошедший, одобряет админ */
+const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+const reviewHtml = r => `<div class="rv-item"><div class="rv-h"><b>${esc(r.name)}</b><span class="rv-st" aria-label="Оценка ${r.rating} из 5">${stars(r.rating)}</span></div>
+  <p>${esc(r.body)}</p><span class="small">${fmtDate(Date.parse(r.created_at))}</span></div>`;
+let rvRating = 5, rvMine = null;
+function drawStars() {
+  $('#rvStars').innerHTML = [1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" data-r="${i}" aria-checked="${i === rvRating}" aria-label="${i} из 5"${i <= rvRating ? ' class="on"' : ''}>★</button>`).join('');
+}
+$('#rvStars').onclick = e => { const b = e.target.closest('[data-r]'); if (b) { rvRating = +b.dataset.r; drawStars(); } };
+async function openReviews() {
+  $('#rv').hidden = false; $('#rvMsg').textContent = ''; $('#rvSum').innerHTML = '';
+  $('#rvList').innerHTML = '<p class="small">Загружаю…</p>';
+  const t = authOn() && session ? await token() : null;
+  $('#rvForm').hidden = !t; $('#rvLogin').hidden = !!t || !authOn();
+  try {
+    const list = await api('/rest/v1/reviews?select=name,rating,body,created_at&approved=eq.true&order=created_at.desc&limit=50');
+    const avg = list.length ? list.reduce((s, r) => s + r.rating, 0) / list.length : 0;
+    if (list.length) $('#rvSum').innerHTML = `<b>${avg.toFixed(1).replace('.', ',')}</b><span class="rv-st">${stars(Math.round(avg))}</span><span class="small">${list.length} ${plural(list.length, ['отзыв', 'отзыва', 'отзывов'])}</span>`;
+    $('#rvList').innerHTML = list.length ? list.map(reviewHtml).join('') : '<p class="small">Пока отзывов нет. Попробуйте Точку и станьте первым!</p>';
+    if (t) {
+      rvMine = (await api(`/rest/v1/reviews?select=name,rating,body,approved&user_id=eq.${session.user.id}`, { token: t }))[0] || null;
+      rvRating = rvMine ? rvMine.rating : 5; drawStars();
+      $('#rvName').value = rvMine ? rvMine.name : ''; $('#rvBody').value = rvMine ? rvMine.body : '';
+      $('#rvFormTitle').textContent = rvMine ? 'Ваш отзыв' : 'Оставить отзыв';
+      $('#rvState').textContent = !rvMine ? 'Отзыв появится на сайте после проверки.' : rvMine.approved ? 'Опубликован. Если измените — он снова уйдёт на проверку.' : 'На проверке — скоро появится на сайте.';
+      $('#rvSend').textContent = rvMine ? 'Сохранить и отправить на проверку' : 'Отправить на проверку';
+    }
+  } catch (e) {
+    $('#rvForm').hidden = true; $('#rvLogin').hidden = true;
+    $('#rvList').innerHTML = `<p class="small">${/reviews|42P01|PGRST/.test(e.message + e.code) ? 'Отзывы скоро появятся.' : 'Не получилось загрузить отзывы. Проверьте интернет.'}</p>`;
+  }
+}
+function closeReviews() { $('#rv').hidden = true; }
+$('#rvx').onclick = closeReviews;
+$('#rv').addEventListener('click', e => { if (e.target.id === 'rv') closeReviews(); });
+$('#rvSignIn').onclick = () => { closeReviews(); showGate('email'); };
+$('#rvForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('#rvName').value.trim(), body = $('#rvBody').value.trim(), msg = $('#rvMsg');
+  if (name.length < 2) { msg.textContent = 'Напишите, как вас подписать.'; return $('#rvName').focus(); }
+  if (body.length < 10) { msg.textContent = 'Напишите хотя бы пару слов — от 10 букв.'; return $('#rvBody').focus(); }
+  $('#rvSend').disabled = true; msg.textContent = 'Отправляю…';
+  try {
+    const t = await token();
+    if (rvMine) await api(`/rest/v1/reviews?user_id=eq.${session.user.id}`, { method: 'PATCH', body: { name, rating: rvRating, body, approved: false }, token: t });
+    else await api('/rest/v1/reviews', { method: 'POST', body: { name, rating: rvRating, body }, token: t });
+    msg.textContent = '';
+    toast('Спасибо за отзыв! Он появится после проверки', 3200);
+    openReviews();
+  } catch (err) { msg.textContent = 'Не получилось отправить: ' + err.message; }
+  finally { $('#rvSend').disabled = false; }
+});
+// админ: отзывы на проверке — одобрить или удалить
+async function loadAdmReviews() {
+  try {
+    const rows = await api('/rest/v1/reviews?select=id,name,rating,body,created_at&approved=eq.false&order=created_at', { token: await token() });
+    $('#admRev').innerHTML = rows.length ? `<h4>Отзывы на проверке: ${rows.length}</h4>` + rows.map(r => `<div class="adm-row">${reviewHtml(r)}
+      <div class="adm-acts"><button class="btn pri" type="button" data-rv="ok" data-id="${r.id}">Одобрить</button><button class="btn" type="button" data-rv="del" data-id="${r.id}">Удалить</button></div></div>`).join('') : '';
+  } catch { $('#admRev').innerHTML = ''; }   // таблицы отзывов ещё нет — просто не показываем
+}
+async function moderateReview(b) {
+  b.disabled = true;
+  try {
+    const path = `/rest/v1/reviews?id=eq.${+b.dataset.id}`, t = await token();
+    if (b.dataset.rv === 'ok') await api(path, { method: 'PATCH', body: { approved: true }, token: t });
+    else await api(path, { method: 'DELETE', token: t });
+    toast(b.dataset.rv === 'ok' ? 'Отзыв опубликован' : 'Отзыв удалён');
+    loadAdmReviews();
+  } catch (err) { b.disabled = false; toast('Не получилось: ' + err.message, 3000); }
+}
 $('#admQ').addEventListener('input', drawAdmin);
 $('#admRefresh').onclick = loadAdmin;
 $('#admCopy').onclick = () => copy(admRows.map(r => r.email).join('\n'), `Скопировано почт: ${admRows.length}`);
@@ -841,8 +951,11 @@ $('#pro').addEventListener('click', e => { if (e.target.id === 'pro') closePro()
 
 // при запуске и потом время от времени сверяемся с сервером
 applyAccess();
+const backFromPay = new URLSearchParams(location.search).has('paid');
+if (backFromPay) history.replaceState(null, '', location.pathname + location.hash);
 if (authOn()) {
-  loadStatus().then(() => {
+  if (backFromPay && session) afterPay();
+  else loadStatus().then(() => {
     if (acct && acct.state === 'trial' && daysLeft(acct.until) <= 1) setTimeout(() => toast(`Пробный период заканчивается ${fmtDate(acct.until)}. Подписка — ${PLAN.price} ₽ в месяц`, 3600), 1800);
   });
   setInterval(loadStatus, 30 * 60 * 1000);
@@ -1401,9 +1514,10 @@ $('#pExport').onclick = () => $('#export').click();
 $('#pPro').onclick = () => openPro();
 $('#pAcc').onclick = () => openPro();
 $('#pAdm').onclick = () => openAdmin();
+$('#pRev').onclick = () => openReviews();
 document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b && !needPro()) openPro(); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); hideGate(); }
+  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); closeReviews(); hideGate(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });

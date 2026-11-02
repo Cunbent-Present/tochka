@@ -394,6 +394,24 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 /* контакты в карточке без Pro */
 .lockv{display:grid;gap:6px;justify-items:start}
 .lockv .blur{filter:blur(4px);user-select:none;color:var(--muted)}
+/* отзывы */
+.rv-sum{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.rv-sum:empty{display:none}
+.rv-sum b{font-family:var(--f-display);font-weight:500;font-size:28px}
+.rv-st{color:var(--gold);letter-spacing:1px}
+.rv-list{display:grid;gap:10px;max-height:40vh;overflow:auto}
+.rv-item{display:grid;gap:4px;padding:12px;border-radius:12px;background:var(--soft);border:1px solid var(--line)}
+.rv-item p{margin:0;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+.rv-h{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.rv-form{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.rv-form h4,.adm-rev h4{margin:0;font-size:15px}
+.rv-form .small{margin:0}
+.rv-stars{display:flex;gap:4px}
+.rv-stars button{width:40px;height:40px;border:0;border-radius:10px;background:var(--soft);font-size:22px;line-height:1;color:var(--muted);cursor:pointer}
+.rv-stars button.on{color:var(--gold)}
+.rv-form textarea{width:100%;box-sizing:border-box;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--fg);padding:10px 12px;font:inherit;resize:vertical}
+.adm-rev{display:grid;gap:8px}
+.adm-rev:empty{display:none}
 .btn:disabled{opacity:.6;cursor:progress}
 .acc-box{display:grid;gap:8px;padding:12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);line-height:1.45}
 

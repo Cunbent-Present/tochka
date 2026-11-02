@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Отзывы о Точке</title>
+<meta name="description" content="Отзывы веб-дизайнеров и разработчиков о Точке — карте салонов и барбершопов для поиска клиентов на сайты.">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+/* Документ в одну колонку, как oferta.html */
+:root{--bg:#F4F5F1;--panel:#FFFFFF;--fg:#1B2126;--muted:#66717A;--line:#DCE1DC;--accent:#D9472B;--gold:#B8860B;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#11161A;--panel:#192026;--fg:#E7ECEE;--muted:#93A0A8;--line:#2A343B;--accent:#F0644A;--gold:#E0B84A;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#11161A;--panel:#192026;--fg:#E7ECEE;--muted:#93A0A8;--line:#2A343B;--accent:#F0644A;--gold:#E0B84A;color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding-block:32px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:28px;line-height:1.2;margin:0 0 8px;text-wrap:balance}
+a{color:var(--accent)}
+.back{display:inline-block;margin-bottom:24px;font-weight:600;text-decoration:none}
+.muted{color:var(--muted)}
+.sum{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:8px 0 20px}
+.sum b{font-size:36px;letter-spacing:-.02em}
+.st{color:var(--gold);letter-spacing:1px}
+.list{display:grid;gap:12px}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.item p{margin:6px 0;white-space:pre-line;overflow-wrap:anywhere}
+.head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.cta{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← Открыть Точку</a> · <a href="oferta.html">Тарифы и оферта</a>
+  <h1>Отзывы о Точке</h1>
+  <p class="muted">Пишут те, кто пользуется Точкой. Каждый отзыв — от настоящего аккаунта, публикуется после проверки.</p>
+  <div class="sum" id="sum"></div>
+  <div class="list" id="list"><p class="muted">Загружаю…</p></div>
+  <div class="cta">Пользуетесь Точкой? Оставьте отзыв в приложении: <b>Профиль → Отзывы</b>. <a href="./">Открыть Точку</a></div>
+</main>
+<script>
+// публичный ключ — тот же, что в app.js; сервер отдаёт по нему только одобренные отзывы (supabase/reviews.sql)
+const URL_ = 'https://aficnrxwryphxdgjmyfx.supabase.co', KEY = 'sb_publishable_jxAB9uHvaD7-Tp_qkdgGiQ_tQswTA_2';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+const plural = (n, f) => f[(n % 10 === 1 && n % 100 !== 11) ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2];
+fetch(URL_ + '/rest/v1/reviews?select=name,rating,body,created_at&approved=eq.true&order=created_at.desc&limit=100', { headers: { apikey: KEY } })
+  .then(r => r.ok ? r.json() : [])
+  .catch(() => [])
+  .then(list => {
+    const box = document.getElementById('list');
+    if (!list.length) { box.innerHTML = '<p class="muted">Пока отзывов нет — Точка только запустилась. Попробуйте её и станьте первым!</p>'; return; }
+    const avg = list.reduce((s, r) => s + r.rating, 0) / list.length;
+    document.getElementById('sum').innerHTML = `<b>${avg.toFixed(1).replace('.', ',')}</b><span class="st">${stars(Math.round(avg))}</span><span class="muted">${list.length} ${plural(list.length, ['отзыв', 'отзыва', 'отзывов'])}</span>`;
+    box.innerHTML = list.map(r => `<div class="item"><div class="head"><b>${esc(r.name)}</b><span class="st" aria-label="Оценка ${r.rating} из 5">${stars(r.rating)}</span></div>
+      <p>${esc(r.body)}</p><span class="muted">${new Date(r.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>`).join('');
+  });
+</script>
+</body>
+</html>
