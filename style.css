@@ -69,6 +69,18 @@ a{color:inherit}
 .tab .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-size:11px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel)}
 .tabpill{position:absolute;top:6px;left:0;height:calc(var(--tabh) - 12px);border-radius:16px;background:color-mix(in srgb,var(--accent) 11%,transparent);transition:transform .32s cubic-bezier(.2,.9,.25,1.1),width .32s,height .32s;z-index:0}
 .rail-brand,.rail-dl{display:none}
+/* значок «Скачать»: стрелка раз в несколько секунд опускается в лоток, при наведении — чаще; цвета — из темы */
+.dl-ico{overflow:visible}
+.dl-arrow{animation:dl-drop 3.2s ease-in-out infinite}
+.dl-tray{transform-origin:12px 20px;animation:dl-catch 3.2s ease-in-out infinite}
+a:hover > .dl-ico .dl-arrow,a:focus-visible > .dl-ico .dl-arrow{animation-duration:1.1s}
+a:hover > .dl-ico .dl-tray,a:focus-visible > .dl-ico .dl-tray{animation-duration:1.1s}
+@keyframes dl-drop{0%,60%,100%{transform:translateY(0);opacity:1}75%{transform:translateY(4px);opacity:1}82%{transform:translateY(4px);opacity:0}83%{transform:translateY(-6px);opacity:0}95%{transform:translateY(0);opacity:1}}
+@keyframes dl-catch{0%,72%,100%{transform:scaleY(1)}78%{transform:scaleY(.8)}86%{transform:scaleY(1)}}
+.pi-dl{justify-content:flex-start;gap:12px}
+.pi-dl .dl-ico{width:22px;height:22px;flex:none;color:var(--accent)}
+.pi-dl .chev{margin-left:auto}
+@media (prefers-reduced-motion:reduce){.dl-arrow,.dl-tray{animation:none}}
 /* логотип: «Т◌чка» — вместо «о» кольцо с разрывом, в разрыве точка (знак как в icons/logo.svg) */
 .logo{font-family:var(--f-display);font-weight:700;letter-spacing:-.02em;line-height:1;white-space:nowrap;color:var(--fg)}
 .logo-o{width:.7em;height:.7em;margin:0 .015em;vertical-align:-.07em;overflow:visible}
@@ -298,7 +310,9 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
   .tabpill{height:auto}
   .rail-brand{display:grid;place-items:center;align-content:center;gap:6px;font-size:15px}
   .rail-dl{display:grid;justify-items:center;align-content:center;gap:3px;position:absolute;left:8px;right:8px;bottom:calc(12px + env(safe-area-inset-bottom,0px));height:60px;border-radius:14px;
-    text-decoration:none;font-size:11.5px;font-weight:600;color:var(--bg);background:var(--fg);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 color-mix(in srgb,var(--fg) 55%,#000)}
+    text-decoration:none;font-size:11.5px;font-weight:600;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel));
+    border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);transition:background-color .2s,color .2s}
+  .rail-dl:hover{background:var(--accent);color:var(--accent-fg)}
   .rail-dl svg{width:22px;height:22px}
   .tab .badge{left:calc(50% + 8px)}
   .view{inset:0 0 0 var(--rail)}
