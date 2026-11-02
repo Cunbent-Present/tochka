@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Знак Точки: кольцо-«о» с разрывом, в разрыве — точка -->
+  <rect width="24" height="24" rx="5.5" fill="#1E6FD9"/>
+  <g transform="translate(12 12) scale(.72) translate(-12 -12)">
+    <path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="18" cy="6" r="2.4" fill="#FFD24A"/>
+  </g>
+</svg>

@@ -69,6 +69,11 @@ a{color:inherit}
 .tab .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-size:11px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel)}
 .tabpill{position:absolute;top:6px;left:0;height:calc(var(--tabh) - 12px);border-radius:16px;background:color-mix(in srgb,var(--accent) 11%,transparent);transition:transform .32s cubic-bezier(.2,.9,.25,1.1),width .32s,height .32s;z-index:0}
 .rail-brand,.rail-dl{display:none}
+/* логотип: «Т◌чка» — вместо «о» кольцо с разрывом, в разрыве точка (знак как в icons/logo.svg) */
+.logo{font-family:var(--f-display);font-weight:700;letter-spacing:-.02em;line-height:1;white-space:nowrap;color:var(--fg)}
+.logo-o{width:.7em;height:.7em;margin:0 .015em;vertical-align:-.07em;overflow:visible}
+.logo-o path{fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round}
+.logo-o circle{fill:var(--accent)}
 
 /* ---------- карта ---------- */
 #map{position:absolute;inset:0;background:var(--bg)}
@@ -291,8 +296,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
   .tabbar{top:0;bottom:0;right:auto;width:var(--rail);height:auto;border-top:0;border-right:1px solid var(--line);
     grid-template-columns:1fr;grid-auto-rows:68px;align-content:start;gap:4px;padding:10px 8px calc(10px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
   .tabpill{height:auto}
-  .rail-brand{display:grid;place-items:center;align-content:center;gap:6px;font-family:var(--f-display);font-weight:700;font-size:13px;letter-spacing:-.02em}
-  .rail-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+  .rail-brand{display:grid;place-items:center;align-content:center;gap:6px;font-size:15px}
   .rail-dl{display:grid;justify-items:center;align-content:center;gap:3px;position:absolute;left:8px;right:8px;bottom:calc(12px + env(safe-area-inset-bottom,0px));height:60px;border-radius:14px;
     text-decoration:none;font-size:11.5px;font-weight:600;color:var(--bg);background:var(--fg);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 color-mix(in srgb,var(--fg) 55%,#000)}
   .rail-dl svg{width:22px;height:22px}
@@ -368,8 +372,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
   padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(20px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .gate-card{position:relative;width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--deep);padding:22px;display:grid;gap:14px;animation:rise .4s cubic-bezier(.2,.9,.25,1.1)}
-.gate-brand{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:-.02em}
-.gate-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.gate-brand{display:flex;align-items:center;font-size:22px}
 .g-step{display:grid;gap:12px}
 .g-step h2{font-family:var(--f-display);font-weight:500;font-size:21px;line-height:1.2;margin:0;text-wrap:balance}
 .g-lead{margin:0;color:var(--muted);line-height:1.5;font-size:14.5px}

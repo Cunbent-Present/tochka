@@ -5,24 +5,24 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Скачать Точку</title>
 <meta name="description" content="Установите Точку — карту барбершопов, салонов красоты, маникюра и СПА по всей России — на Android, Windows или iPhone.">
-<meta name="theme-color" content="#1B2126">
+<meta name="theme-color" content="#F2F4F7">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
 <style>
 /* Страница загрузки: заголовок, три карточки платформ (ваша — первой), ссылка «поделиться» */
 :root{
-  --bg:#F4F5F1; --panel:#FFFFFF; --fg:#1B2126; --muted:#66717A; --line:#DCE1DC;
-  --accent:#D9472B; --accent-fg:#FFFFFF; --soft:#EEF1EC; --shadow:0 8px 30px rgba(20,30,35,.10);
-  --f-display:"Unbounded","Onest",system-ui,sans-serif;
+  --bg:#F2F4F7; --panel:#FFFFFF; --fg:#1F2328; --muted:#6B7280; --line:#E2E5EA;
+  --accent:#1E6FD9; --accent-fg:#FFFFFF; --soft:#F1F3F6; --shadow:0 2px 10px rgba(17,24,39,.10);
+  --f-display:"Onest",system-ui,sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B;
-  --accent:#F0644A; --accent-fg:#1A0E0B; --soft:#202931; --shadow:0 8px 30px rgba(0,0,0,.4); color-scheme:dark}}
+  --bg:#17191C; --panel:#202327; --fg:#E8EAED; --muted:#9AA0A6; --line:#30343A;
+  --accent:#5B9BF0; --accent-fg:#0B1424; --soft:#272A2F; --shadow:0 2px 10px rgba(0,0,0,.4); color-scheme:dark}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5}
 a{color:inherit}
@@ -31,7 +31,8 @@ a{color:inherit}
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:36px}
 .brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;text-decoration:none}
-.brand i{width:12px;height:12px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.brand{font-size:24px;line-height:1}
+.logo-o{width:.7em;height:.7em;margin:0 .015em;vertical-align:-.07em;overflow:visible}.logo-o path{fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round}.logo-o circle{fill:var(--accent)}
 .back{font-size:14px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:7px 12px;background:var(--panel)}
 h1{font-family:var(--f-display);font-weight:500;font-size:clamp(26px,5vw,38px);line-height:1.15;margin:0 0 12px;text-wrap:balance;letter-spacing:-.01em}
 .lead{color:var(--muted);max-width:56ch;margin:0 0 32px}
@@ -65,7 +66,7 @@ kbd{font-family:inherit;font-weight:600}
 <body>
 <div class="wrap">
   <div class="top">
-    <a class="brand" href="./"><i></i>Точка</a>
+    <a class="brand" href="./" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></a>
     <a class="back" href="./">Открыть карту</a>
   </div>
 
