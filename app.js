@@ -32,7 +32,8 @@ const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
 const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
 const THEME_KEY = 'tochka-theme';
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
-let themeMode = (() => { try { const t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'dark' ? t : 'auto'; } catch { return 'auto'; } })();
+// по умолчанию светлая тема (как у карт); «Авто» — только если человек сам её выбрал в Профиле
+let themeMode = (() => { try { const t = localStorage.getItem(THEME_KEY); return t === 'dark' || t === 'auto' ? t : 'light'; } catch { return 'light'; } })();
 const computeDark = () => themeMode === 'dark' || (themeMode === 'auto' && sysDark.matches);
 let DARK = computeDark();
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;

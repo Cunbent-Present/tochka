@@ -1,40 +1,41 @@
 /* Точка.
    Телефон: вкладки снизу, карта на весь экран, карточка — шторка снизу (мини / половина / весь экран).
    ПК (шире 760px): вкладки слева узкой панелью, карточка — панель справа, «Клиенты» в две колонки.
-   Тема: Авто (как в системе) / Светлая / Тёмная — атрибут data-theme на <html>. */
+   Тема: Светлая (по умолчанию) / Тёмная / Авто (как в системе) — атрибут data-theme на <html>.
+   Стиль спокойный, как у приложений карт: плоские кнопки, лёгкие тени, без свечения и размытия. */
 :root{
-  --bg:#F4F5F1; --panel:#FFFFFF; --fg:#1B2126; --muted:#66717A; --line:#DCE1DC; --soft:#EEF1EC;
-  --accent:#D9472B; --accent-fg:#FFFFFF; --ok:#2E8A57; --warn:#B07A06; --gold:#E3A008; --gold-fg:#1B1405;
-  --edge:#C7CDC6; --hi:rgba(255,255,255,.9); --scrim:rgba(10,14,16,.38);
-  --shadow:0 8px 30px rgba(20,30,35,.16);
-  --deep:0 2px 4px rgba(20,30,35,.08),0 14px 28px -6px rgba(20,30,35,.22),0 30px 60px -20px rgba(20,30,35,.28);
-  --st-new-bg:#EEF1EC; --st-new:#66717A; --st-sent-bg:#DCE8F5; --st-sent:#22507E; --st-reply-bg:#EFE3F7; --st-reply:#6B3F94;
-  --st-deal-bg:#DDF1E4; --st-deal:#1F6B41; --st-no-bg:#F6DEDA; --st-no:#9A3524;
-  --bar-new:#9AA3AA; --bar-sent:#2F6496; --bar-reply:#7A5BB5; --bar-deal:#2E8A57; --bar-no:#B3541E;
-  --f-display:"Unbounded","Onest",system-ui,sans-serif;
+  --bg:#F2F4F7; --panel:#FFFFFF; --fg:#1F2328; --muted:#6B7280; --line:#E2E5EA; --soft:#F1F3F6;
+  --accent:#1E6FD9; --accent-fg:#FFFFFF; --ok:#1F9D55; --warn:#B07A06; --gold:#E3A008; --gold-fg:#1B1405;
+  --edge:transparent; --hi:transparent; --scrim:rgba(17,24,39,.45);
+  --shadow:0 2px 10px rgba(17,24,39,.12);
+  --deep:0 1px 2px rgba(17,24,39,.08),0 2px 8px rgba(17,24,39,.08);
+  --st-new-bg:#F1F3F6; --st-new:#6B7280; --st-sent-bg:#DCE8F8; --st-sent:#1E5BB0; --st-reply-bg:#EDE7F8; --st-reply:#5B3F94;
+  --st-deal-bg:#DCF2E5; --st-deal:#17693B; --st-no-bg:#F8E1DD; --st-no:#9A3524;
+  --bar-new:#9CA3AF; --bar-sent:#1E6FD9; --bar-reply:#7A5BB5; --bar-deal:#1F9D55; --bar-no:#C2561F;
+  --f-display:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   --tabh:64px; --rail:88px; --panelw:380px;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B; --soft:#202931;
-  --accent:#F0644A; --accent-fg:#1A0E0B; --ok:#5BC98A; --warn:#F0C04A; --gold:#F0B429; --gold-fg:#1B1405;
-  --edge:#0B0F12; --hi:rgba(255,255,255,.07); --scrim:rgba(0,0,0,.55);
-  --shadow:0 8px 30px rgba(0,0,0,.45);
-  --deep:0 2px 4px rgba(0,0,0,.4),0 14px 28px -6px rgba(0,0,0,.55),0 30px 60px -20px rgba(0,0,0,.6);
-  --st-new-bg:#202931; --st-new:#93A0A8; --st-sent-bg:#1E3348; --st-sent:#9CC4EC; --st-reply-bg:#2F2440; --st-reply:#CDB1EA;
-  --st-deal-bg:#1C3426; --st-deal:#8FD8AA; --st-no-bg:#3D2320; --st-no:#F0A496;
-  --bar-new:#56626B; --bar-sent:#6FA3DA; --bar-reply:#B39AE0; --bar-deal:#5BC98A; --bar-no:#F09A5E;
+  --bg:#17191C; --panel:#202327; --fg:#E8EAED; --muted:#9AA0A6; --line:#30343A; --soft:#272A2F;
+  --accent:#5B9BF0; --accent-fg:#0B1424; --ok:#4CC27F; --warn:#E8B949; --gold:#E8B03A; --gold-fg:#1B1405;
+  --edge:transparent; --hi:transparent; --scrim:rgba(0,0,0,.55);
+  --shadow:0 2px 10px rgba(0,0,0,.4);
+  --deep:0 1px 2px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.3);
+  --st-new-bg:#272A2F; --st-new:#9AA0A6; --st-sent-bg:#1D2F48; --st-sent:#A7C7F2; --st-reply-bg:#2C2540; --st-reply:#CDB8EA;
+  --st-deal-bg:#1B3226; --st-deal:#92D8AE; --st-no-bg:#3B2421; --st-no:#F0A99C;
+  --bar-new:#5F656D; --bar-sent:#5B9BF0; --bar-reply:#B39AE0; --bar-deal:#4CC27F; --bar-no:#EE9A62;
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B; --soft:#202931;
-  --accent:#F0644A; --accent-fg:#1A0E0B; --ok:#5BC98A; --warn:#F0C04A; --gold:#F0B429; --gold-fg:#1B1405;
-  --edge:#0B0F12; --hi:rgba(255,255,255,.07); --scrim:rgba(0,0,0,.55);
-  --shadow:0 8px 30px rgba(0,0,0,.45);
-  --deep:0 2px 4px rgba(0,0,0,.4),0 14px 28px -6px rgba(0,0,0,.55),0 30px 60px -20px rgba(0,0,0,.6);
-  --st-new-bg:#202931; --st-new:#93A0A8; --st-sent-bg:#1E3348; --st-sent:#9CC4EC; --st-reply-bg:#2F2440; --st-reply:#CDB1EA;
-  --st-deal-bg:#1C3426; --st-deal:#8FD8AA; --st-no-bg:#3D2320; --st-no:#F0A496;
-  --bar-new:#56626B; --bar-sent:#6FA3DA; --bar-reply:#B39AE0; --bar-deal:#5BC98A; --bar-no:#F09A5E;
+  --bg:#17191C; --panel:#202327; --fg:#E8EAED; --muted:#9AA0A6; --line:#30343A; --soft:#272A2F;
+  --accent:#5B9BF0; --accent-fg:#0B1424; --ok:#4CC27F; --warn:#E8B949; --gold:#E8B03A; --gold-fg:#1B1405;
+  --edge:transparent; --hi:transparent; --scrim:rgba(0,0,0,.55);
+  --shadow:0 2px 10px rgba(0,0,0,.4);
+  --deep:0 1px 2px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.3);
+  --st-new-bg:#272A2F; --st-new:#9AA0A6; --st-sent-bg:#1D2F48; --st-sent:#A7C7F2; --st-reply-bg:#2C2540; --st-reply:#CDB8EA;
+  --st-deal-bg:#1B3226; --st-deal:#92D8AE; --st-no-bg:#3B2421; --st-no:#F0A99C;
+  --bar-new:#5F656D; --bar-sent:#5B9BF0; --bar-reply:#B39AE0; --bar-deal:#4CC27F; --bar-no:#EE9A62;
   color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -63,11 +64,9 @@ a{color:inherit}
 .tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);
   height:calc(var(--tabh) + env(safe-area-inset-bottom,0px));padding:4px max(8px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(8px,env(safe-area-inset-left,0px))}
 .tab{border:0;background:none;display:grid;justify-items:center;align-content:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--muted);position:relative;z-index:1;transition:color .2s}
-.tab svg{width:24px;height:24px;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+.tab svg{width:24px;height:24px}
 .tab[aria-selected="true"]{color:var(--accent)}
-.tab[aria-selected="true"] svg{transform:translateY(-2px) scale(1.08)}
-.tab .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-size:11px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel);animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.tab .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-size:11px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel)}
 .tabpill{position:absolute;top:6px;left:0;height:calc(var(--tabh) - 12px);border-radius:16px;background:color-mix(in srgb,var(--accent) 11%,transparent);transition:transform .32s cubic-bezier(.2,.9,.25,1.1),width .32s,height .32s;z-index:0}
 .rail-brand,.rail-dl{display:none}
 
@@ -112,7 +111,7 @@ a{color:inherit}
 .pickbar .mini{background:var(--bg);color:var(--fg);border-color:transparent}
 
 /* ---------- карточка: шторка (телефон) / панель справа (ПК) ---------- */
-.drawer{position:absolute;left:0;right:0;bottom:0;z-index:8;background:var(--panel);border-radius:22px 22px 0 0;box-shadow:0 -10px 40px -12px rgba(0,0,0,.35);
+.drawer{position:absolute;left:0;right:0;bottom:0;z-index:8;background:var(--panel);border-radius:18px 18px 0 0;box-shadow:0 -2px 12px rgba(17,24,39,.14);
   display:flex;flex-direction:column;will-change:transform;height:calc(100% - 8px)}
 .drawer.anim{transition:transform .38s cubic-bezier(.2,.9,.25,1.05)}
 .grab{flex:none;padding:9px 0 4px;cursor:grab;touch-action:none;display:grid;place-items:center}
@@ -152,15 +151,14 @@ a{color:inherit}
 .mini{border:1px solid var(--line);background:transparent;border-radius:8px;padding:4px 8px;font-size:12.5px;white-space:nowrap}
 .mini.danger{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 select.mini{height:28px;padding:0 6px;color:var(--fg);cursor:pointer;background:var(--panel)}
-.chip,.city,.btn,.mini,.x,.star,.cities button,.res,.st{
-  box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 3px 8px rgba(20,30,35,.06);transition:transform .12s ease,box-shadow .12s ease,background-color .15s ease}
-.city{box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),var(--deep)}
-.chip:active,.city:active,.btn:active,.mini:active,.x:active,.star:active,.cities button:active,.res:active,.st:active{transform:translateY(2px);box-shadow:inset 0 1px 0 var(--hi),0 0 0 var(--edge)}
-.chip[aria-pressed="true"]{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 2px 0 color-mix(in srgb,var(--fg) 60%,#000),0 4px 10px rgba(20,30,35,.15)}
-.chip.nosite[aria-pressed="true"],.btn.pri{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 0 color-mix(in srgb,var(--accent) 65%,#000),0 6px 14px color-mix(in srgb,var(--accent) 30%,transparent)}
+/* кнопки плоские: без бликов и «выпуклости», при нажатии чуть темнеют */
+.chip,.city,.btn,.mini,.x,.star,.cities button,.res,.st{transition:background-color .15s ease,border-color .15s ease,filter .15s ease}
+.city{box-shadow:var(--deep)}
+.chip:active,.city:active,.btn:active,.mini:active,.x:active,.star:active,.cities button:active,.res:active,.st:active{filter:brightness(.94)}
+.btn.pri:hover{filter:brightness(1.06)}
 .seg{display:flex;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:2px;gap:2px;flex:none}
 .seg button{border:0;background:transparent;border-radius:8px;padding:5px 10px;font-size:13px;font-weight:500;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 0 var(--edge),0 2px 6px rgba(20,30,35,.12)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(17,24,39,.12)}
 .sw{width:46px;height:28px;border-radius:14px;border:0;background:var(--line);position:relative;transition:background .2s;flex:none}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
 .sw[aria-checked="true"]{background:var(--ok)}
@@ -294,7 +292,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
     grid-template-columns:1fr;grid-auto-rows:68px;align-content:start;gap:4px;padding:10px 8px calc(10px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
   .tabpill{height:auto}
   .rail-brand{display:grid;place-items:center;align-content:center;gap:6px;font-family:var(--f-display);font-weight:700;font-size:13px;letter-spacing:-.02em}
-  .rail-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .rail-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent)}
   .rail-dl{display:grid;justify-items:center;align-content:center;gap:3px;position:absolute;left:8px;right:8px;bottom:calc(12px + env(safe-area-inset-bottom,0px));height:60px;border-radius:14px;
     text-decoration:none;font-size:11.5px;font-weight:600;color:var(--bg);background:var(--fg);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 color-mix(in srgb,var(--fg) 55%,#000)}
   .rail-dl svg{width:22px;height:22px}
@@ -326,7 +324,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 }
 
 /* ---------- Точка Pro ---------- */
-.pro-mark{display:inline-grid;place-items:center;font:700 10px/1 var(--f-display);letter-spacing:.08em;color:var(--gold-fg);background:linear-gradient(135deg,#F7C948,var(--gold));
+.pro-mark{display:inline-grid;place-items:center;font:700 10px/1 var(--f-display);letter-spacing:.08em;color:var(--gold-fg);background:var(--gold);
   border-radius:6px;padding:4px 6px;vertical-align:middle;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 0 #A87508}
 .pro-mark.sm{font-size:8px;padding:3px 4px;display:none}
 .is-pro .pro-mark.sm{display:inline-grid}
@@ -366,12 +364,12 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 
 /* ---------- вход и оплата ---------- */
 .gate{position:fixed;inset:0;z-index:1400;display:grid;place-items:center;overflow:auto;
-  background:color-mix(in srgb,var(--bg) 72%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1);
+  background:var(--scrim);
   padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(20px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .gate-card{position:relative;width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--deep);padding:22px;display:grid;gap:14px;animation:rise .4s cubic-bezier(.2,.9,.25,1.1)}
 .gate-brand{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:-.02em}
-.gate-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.gate-brand i{width:12px;height:12px;border-radius:50%;background:var(--accent)}
 .g-step{display:grid;gap:12px}
 .g-step h2{font-family:var(--f-display);font-weight:500;font-size:21px;line-height:1.2;margin:0;text-wrap:balance}
 .g-lead{margin:0;color:var(--muted);line-height:1.5;font-size:14.5px}
