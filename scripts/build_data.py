@@ -71,7 +71,10 @@ PRIORITY = ["RU-MOW", "RU-SPE", "RU-MOS", "RU-LEN", "RU-KDA", "RU-NVS", "RU-SVE"
             "RU-KYA", "RU-SAM", "RU-BA", "RU-ROS", "RU-OMS", "RU-VOR", "RU-PER", "RU-VGG", "RU-TYU",
             "RU-KGD", "RU-PRI", "RU-CHE"]
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://aficnrxwryphxdgjmyfx.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
+# strip — при вставке в GitHub Secrets к ключу легко прилипает перенос строки, и сервер его не примет
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+upload_broken = ""     # если сервер отказал — до конца запуска контакты больше не шлём (и не ждём таймаутов)
+STARTED = time.time()
 # тег OSM → столбец таблицы place_contacts
 SECRET = {"phone": "phone", "contact:phone": "phone", "email": "email", "contact:email": "email",
           "contact:telegram": "tg", "contact:vk": "vk", "contact:instagram": "inst"}
@@ -163,6 +166,10 @@ def fetch_region(reg):
     got, whole = {}, True
     queue = [(t, size) for t in tiles(s, w, n, e, size)]
     while queue:
+        # медленный сервер не должен съесть весь запуск на одном регионе: время вышло — регион недокачан
+        if (time.time() - STARTED) / 60 > BUDGET_MIN:
+            print("  время запуска вышло посреди региона — докачаю в следующий раз", flush=True)
+            return list(got.values()), False
         t, sz = queue.pop(0)
         try:
             for el in fetch(region_query(reg["rel"], t, timeout=300), timeout=360, tries=1).get("elements", []):
@@ -246,7 +253,8 @@ def upload_contacts(items):
 
 def protect(rows):
     """Убирает контакты из строк файла и кладёт их на сервер. Если сервер недоступен — строки как были."""
-    if not SUPABASE_KEY:
+    global upload_broken
+    if not SUPABASE_KEY or upload_broken:
         return rows
     items, out = [], []
     for r in rows:
@@ -265,7 +273,9 @@ def protect(rows):
     try:
         upload_contacts(items)
     except Exception as e:
-        print(f"  контакты не загрузились на сервер ({str(e)[:200]}) — оставляю их в файле", file=sys.stderr, flush=True)
+        upload_broken = str(e)[:200]
+        print(f"  контакты не загрузились на сервер ({upload_broken}) — оставляю их в файлах до следующего запуска",
+              file=sys.stderr, flush=True)
         return rows
     return out
 
@@ -284,6 +294,8 @@ def protect_existing():
         if not any(v and v != HIDDEN for r in rows for k, v in r[3].items() if k in SECRET):
             continue
         clean = protect(rows)
+        if upload_broken:
+            break
         if clean is rows:
             continue
         with open(path, "w", encoding="utf-8") as f:
