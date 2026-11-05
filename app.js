@@ -245,6 +245,7 @@ async function loadView() {
     setStatus('Не удалось загрузить данные. Проверьте интернет и подвигайте карту.');
   } finally {
     loading = false;
+    if (document.querySelector('.item.skel')) drawList();   // заготовки строк — заменить на итог загрузки
     if (pending) { pending = false; loadView(); }
   }
 }
@@ -1090,6 +1091,10 @@ function emptyText() {
     : map.getZoom() < MIN_LOAD_ZOOM ? 'Приблизьте карту или выберите город, чтобы загрузить заведения.'
     : 'Здесь ничего не нашлось. Сдвиньте карту или измените поиск.';
 }
+// пока заведения грузятся — серые «заготовки» строк вместо пустоты
+const skeleton = n => Array.from({ length: n }, () => '<div class="item skel" aria-hidden="true"><span class="ic"></span><span><i></i><i></i><i></i></span></div>').join('');
+// пустой список — со знаком Точки, а не просто текстом
+const emptyHtml = text => `<div class="empty"><svg class="empty-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.6"/></svg>${text}</div>`;
 function drawList() {
   const c = map.getCenter(), cc = [c.lat, c.lng];
   const src = favOnly ? visible : visibleInView();
@@ -1102,7 +1107,7 @@ function drawList() {
       <div class="seg" role="group" aria-label="Сортировка">
         <button type="button" data-sort="near" aria-pressed="${sortMode === 'near'}">Ближе</button>
         <button type="button" data-sort="lead" aria-pressed="${sortMode === 'lead'}" title="Сначала те, кому больше всего нужен сайт">Лучшие клиенты</button>
-      </div></div>` + (rows.length ? rows.map(itemHtml).join('') : `<div class="empty">${emptyText()}</div>`);
+      </div></div>` + (rows.length ? rows.map(itemHtml).join('') : loading ? skeleton(6) : emptyHtml(emptyText()));
     L.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (b.dataset.sort === 'lead' && needPro('sort')) return; sortMode = b.dataset.sort; store.set('tochka-sort', sortMode); drawList(); L.scrollTop = 0; });
     bindItems(L);
   }
@@ -1112,8 +1117,8 @@ function drawList() {
 function drawNear(rows) {
   const noSiteN = rows.filter(r => lead(r.p).kind !== 'own').length;
   $('#card').innerHTML = `<div class="near-h"><b>${favOnly ? 'Избранное' : 'Рядом'}</b>
-    <div class="small">${rows.length ? `${rows.length} ${plural(rows.length, ['заведение', 'заведения', 'заведений'])} · ${noSiteN} без своего сайта` : emptyText()}</div></div>`
-    + rows.slice(0, 60).map(itemHtml).join('');
+    <div class="small">${rows.length ? `${rows.length} ${plural(rows.length, ['заведение', 'заведения', 'заведений'])} · ${noSiteN} без своего сайта` : loading ? 'Загружаю заведения…' : emptyText()}</div></div>`
+    + (rows.length ? rows.slice(0, 60).map(itemHtml).join('') : loading ? skeleton(3) : '');
   bindItems($('#card'));
 }
 

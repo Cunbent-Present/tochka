@@ -220,6 +220,20 @@ select.mini{height:28px;padding:0 6px;color:var(--fg);cursor:pointer;background:
 .item:hover{background:var(--soft)}
 @media (hover:hover){.item:hover{box-shadow:inset 3px 0 0 var(--accent)}}
 .item.sel{background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+/* «заготовки» строк, пока грузится: мягкое мерцание */
+.item.skel{pointer-events:none}
+.item.skel .ic{background:var(--soft)}
+.item.skel i{display:block;height:10px;border-radius:5px;background:var(--soft);margin:5px 0}
+.item.skel i:nth-child(1){width:55%;height:12px}.item.skel i:nth-child(2){width:80%}.item.skel i:nth-child(3){width:30%}
+.item.skel .ic,.item.skel i{animation:skel 1.4s ease-in-out infinite}
+@keyframes skel{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.item.skel .ic,.item.skel i{animation:none}}
+.empty{display:grid;justify-items:center;text-align:center;gap:10px}
+.empty-ico{width:40px;height:40px;opacity:.55}
+.empty-ico path{fill:none;stroke:var(--muted);stroke-width:2.6;stroke-linecap:round}
+.empty-ico circle{fill:var(--accent)}
+.item{transition:background-color .15s}
+.item:active{background:var(--soft)}
 /* иконка категории в списке: плитка цвета категории */
 .item .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 13%,var(--panel))}
 .item .ic svg{width:21px;height:21px}
