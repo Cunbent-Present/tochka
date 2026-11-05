@@ -3,10 +3,11 @@
   "appName": "Точка",
   "webDir": "www",
   "server": {
-    "url": "https://cunbent-present.github.io/tochka/",
-    "cleartext": false
+    "url": "https://tochka-klient.ru/",
+    "cleartext": false,
+    "allowNavigation": ["tochka-klient.ru", "www.tochka-klient.ru", "cunbent-present.github.io"]
   },
   "android": {
-    "backgroundColor": "#1B2126"
+    "backgroundColor": "#F2F4F7"
   }
 }

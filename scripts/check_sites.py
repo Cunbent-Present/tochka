@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DATA = os.path.join(ROOT, "data")
 OUT = os.path.join(DATA, "checks")
-UA = "Mozilla/5.0 (compatible; TochkaSiteCheck/1.0; +https://cunbent-present.github.io/tochka/)"
+UA = "Mozilla/5.0 (compatible; TochkaSiteCheck/1.0; +https://tochka-klient.ru/)"
 BUDGET_MIN = float(os.environ.get("BUDGET_MIN", "150"))
 RECHECK_DAYS = 30
 STARTED = time.time()

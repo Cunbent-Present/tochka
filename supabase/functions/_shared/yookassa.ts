@@ -5,7 +5,7 @@
 // SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY Supabase подставляет сам.
 
 export const PRICE = 290;   // ₽ за месяц — как PLAN.price в app.js
-export const APP_URL = Deno.env.get('APP_URL') || 'https://cunbent-present.github.io/tochka/';
+export const APP_URL = Deno.env.get('APP_URL') || 'https://tochka-klient.ru/';
 
 const SB_URL = Deno.env.get('SUPABASE_URL')!;
 const SB_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
