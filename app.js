@@ -271,46 +271,69 @@ map.on('error', e => {
   console.warn(e && e.error);
 });
 
-// Объёмные метки: каплевидный пин с бликом и тенью, рисуется на canvas в двойном разрешении
+// Иконки категорий: контуры 24×24 — и для меток на карте (canvas, Path2D), и для фильтров и карточек (SVG)
+const CAT_ICONS = {
+  barber: 'M10 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M8.6 14.6L17 4M15.4 14.6L7 4',              // ножницы
+  beauty: 'M4 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0M14 6h5.5v4H14M8.5 13l-1.2 7h3l1.2-6.4',                                       // фен
+  nails:  'M10 3h4v5h-4zM7 10.5A2.5 2.5 0 0 1 9.5 8h5a2.5 2.5 0 0 1 2.5 2.5V18.5A2.5 2.5 0 0 1 14.5 21h-5A2.5 2.5 0 0 1 7 18.5z', // лак
+  brows:  'M3 14c3.2-5 14.8-5 18 0c-3.2 5-14.8 5-18 0zM14.5 14a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M6.5 8.8L5.6 6.6M12 7.5V5M17.5 8.8l.9-2.2', // глаз с ресницами
+  tattoo: 'M12 3c3 5 6 8 6 11.5a6 6 0 0 1-12 0C6 11 9 8 12 3z',                                                              // капля туши
+  spa:    'M12 20c-5 0-8-3.6-8-8.6c4 0 7 2 8 5c1-3 4-5 8-5c0 5-3 8.6-8 8.6zM12 15.5c-2-2.2-2-5.5 0-8c2 2.5 2 5.8 0 8z'      // лотос
+};
+const catIcon = (k, cls = 'ci') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${CAT_ICONS[k] || CAT_ICONS.beauty}"/></svg>`;
+
+// 3D-метки: булавка с мягким объёмом (свет сверху-слева), тенью на «земле» и белой иконкой категории внутри.
+// Без глянцевых бликов — как метки в приложениях карт. Рисуется на canvas в двойном разрешении.
 function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16);
   const f = v => Math.max(0, Math.min(255, Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k))));
   return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
 }
-function pinImage(color, big) {
-  const s = big ? 1.25 : 1, W = Math.round(60 * s), H = Math.round(80 * s);
+function pinImage(color, big, cat) {
+  const s = big ? 1.3 : 1, W = Math.round(60 * s), H = Math.round(82 * s);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d'); x.scale(s, s);
-  // тень на «земле»
-  const g0 = x.createRadialGradient(30, 74, 1, 30, 74, 14);
-  g0.addColorStop(0, 'rgba(0,0,0,.35)'); g0.addColorStop(1, 'rgba(0,0,0,0)');
-  x.fillStyle = g0; x.beginPath(); x.ellipse(30, 74, 14, 5, 0, 0, Math.PI * 2); x.fill();
-  // тело пина
-  x.beginPath();
-  x.moveTo(30, 72);
-  x.bezierCurveTo(24, 60, 6, 50, 6, 30);
-  x.arc(30, 30, 24, Math.PI, 0);
-  x.bezierCurveTo(54, 50, 36, 60, 30, 72);
-  x.closePath();
-  const g1 = x.createLinearGradient(8, 6, 52, 60);
-  g1.addColorStop(0, shade(color, 0.32)); g1.addColorStop(0.55, color); g1.addColorStop(1, shade(color, -0.35));
+  // тень на «земле»: размытый овал под остриём
+  const g0 = x.createRadialGradient(30, 76, 1, 30, 76, 15);
+  g0.addColorStop(0, 'rgba(17,24,39,.32)'); g0.addColorStop(1, 'rgba(17,24,39,0)');
+  x.fillStyle = g0; x.beginPath(); x.ellipse(30, 76, 15, 4.5, 0, 0, Math.PI * 2); x.fill();
+  // тело: капля, объём — радиальным светом и тёмным низом
+  const body = () => { x.beginPath(); x.moveTo(30, 73); x.bezierCurveTo(24, 61, 7, 50, 7, 30); x.arc(30, 30, 23, Math.PI, 0); x.bezierCurveTo(53, 50, 36, 61, 30, 73); x.closePath(); };
+  body();
+  const g1 = x.createRadialGradient(22, 18, 2, 30, 34, 40);
+  g1.addColorStop(0, shade(color, 0.22)); g1.addColorStop(0.6, color); g1.addColorStop(1, shade(color, -0.3));
   x.fillStyle = g1; x.fill();
-  x.lineWidth = 3; x.strokeStyle = '#fff'; x.stroke();
-  // внутренний «шар»
-  const g2 = x.createRadialGradient(26, 25, 1, 30, 30, 10);
-  g2.addColorStop(0, '#fff'); g2.addColorStop(1, '#e6e9ec');
-  x.fillStyle = g2; x.beginPath(); x.arc(30, 30, 9, 0, Math.PI * 2); x.fill();
-  // блик
-  x.fillStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.ellipse(20, 16, 7, 4, -0.6, 0, Math.PI * 2); x.fill();
+  x.lineWidth = 2.5; x.strokeStyle = '#fff'; x.stroke();
+  // «бортик» вокруг иконки — лёгкая вдавленность
+  x.beginPath(); x.arc(30, 30, 15.5, 0, Math.PI * 2); x.fillStyle = shade(color, -0.12); x.fill();
+  // иконка категории
+  x.save(); x.translate(30 - 12 * 1.05, 30 - 12 * 1.05); x.scale(1.05, 1.05);
+  x.strokeStyle = '#fff'; x.lineWidth = 2; x.lineCap = 'round'; x.lineJoin = 'round';
+  x.stroke(new Path2D(CAT_ICONS[cat] || CAT_ICONS.beauty));
+  x.restore();
   return { width: W, height: H, data: x.getImageData(0, 0, W, H).data };
+}
+// выбранная метка подпрыгивает: поднимается и мягко опускается
+let bounceRaf = 0;
+function bounceSelected() {
+  if (REDUCE || !map.getLayer('selected')) return;
+  cancelAnimationFrame(bounceRaf);
+  const t0 = performance.now(), dur = 520;
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    const y = -Math.sin(t * Math.PI) * 14 * (1 - t * 0.35);
+    try { map.setLayoutProperty('selected', 'icon-offset', [0, y]); } catch { return; }
+    if (t < 1) bounceRaf = requestAnimationFrame(step);
+  };
+  bounceRaf = requestAnimationFrame(step);
 }
 
 const PIN_LAYERS = ['clusters', 'points', 'selected'];
 function setupLayers() {
   styleLoaded = true;
   for (const [k, v] of Object.entries(CATS)) {
-    if (!map.hasImage('pin-' + k)) map.addImage('pin-' + k, pinImage(v.color, false), { pixelRatio: 2 });
-    if (!map.hasImage('pinb-' + k)) map.addImage('pinb-' + k, pinImage(v.color, true), { pixelRatio: 2 });
+    if (!map.hasImage('pin-' + k)) map.addImage('pin-' + k, pinImage(v.color, false, k), { pixelRatio: 2 });
+    if (!map.hasImage('pinb-' + k)) map.addImage('pinb-' + k, pinImage(v.color, true, k), { pixelRatio: 2 });
   }
   const layers = map.getStyle().layers || [];
   const firstSymbol = (layers.find(l => l.type === 'symbol') || {}).id;
@@ -335,16 +358,16 @@ function setupLayers() {
     map.addLayer({
       id: 'clusters', type: 'circle', source: 'places', filter: ['has', 'point_count'],
       paint: {
-        'circle-color': DARK ? '#E7ECEE' : '#1B2126',
+        'circle-color': DARK ? '#5B9BF0' : '#1E6FD9',
         'circle-radius': ['step', ['get', 'point_count'], 16, 20, 20, 60, 25],
-        'circle-stroke-width': 3, 'circle-stroke-color': DARK ? '#192026' : '#FFFFFF',
+        'circle-stroke-width': 3, 'circle-stroke-color': DARK ? '#202327' : '#FFFFFF',
         'circle-pitch-alignment': 'map'
       }
     });
     map.addLayer({
       id: 'cluster-count', type: 'symbol', source: 'places', filter: ['has', 'point_count'],
       layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Noto Sans Bold'], 'text-size': 13, 'text-allow-overlap': true },
-      paint: { 'text-color': DARK ? '#11161A' : '#FFFFFF' }
+      paint: { 'text-color': DARK ? '#0B1424' : '#FFFFFF' }
     });
     map.addLayer({
       id: 'points', type: 'symbol', source: 'places', filter: ['!', ['has', 'point_count']],
@@ -386,7 +409,13 @@ const geo = list => ({
   features: list.map(p => ({ type: 'Feature', properties: { id: p.id, cat: p.cat, name: p.name }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } }))
 });
 function pushData() { const s = map.getSource('places'); if (s) s.setData(geo(visible)); }
-function markSelected() { if (map.getLayer('selected')) map.setFilter('selected', ['==', ['get', 'id'], sel || '']); }
+let bouncedId = '';
+function markSelected() {
+  if (!map.getLayer('selected')) return;
+  map.setFilter('selected', ['==', ['get', 'id'], sel || '']);
+  if (sel && sel !== bouncedId) { bouncedId = sel; bounceSelected(); }   // прыжок — только при выборе нового места
+  if (!sel) bouncedId = '';
+}
 
 map.on('click', 'clusters', e => {
   if (addMode) return;
@@ -1007,13 +1036,15 @@ const chips = $('#chips');
 function chip(label, color, on, onclick, extra = '') {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'chip ' + extra; b.setAttribute('aria-pressed', on);
-  b.innerHTML = (color ? `<span class="dot" style="background:${color}"></span>` : '') + esc(label);
+  // color — ключ категории (тогда иконка категории её цветом) или обычный цвет точки
+  b.innerHTML = (CATS[color] ? `<span class="cico" style="color:${CATS[color].color}">${catIcon(color)}</span>`
+    : color ? `<span class="dot" style="background:${color}"></span>` : '') + esc(label);
   b.onclick = () => onclick(b); chips.appendChild(b); return b;
 }
 const catChips = [];
 const pickCat = k => b => { cat = k; catChips.forEach(x => x.setAttribute('aria-pressed', x === b)); applyFilter(); };
 catChips.push(chip('Все', null, true, pickCat('all')));
-for (const [k, v] of Object.entries(CATS)) catChips.push(chip(v.name, v.color, false, pickCat(k)));
+for (const [k, v] of Object.entries(CATS)) catChips.push(chip(v.name, k, false, pickCat(k)));
 const sep = document.createElement('span'); sep.className = 'chip-sep'; chips.appendChild(sep);
 chip('Без сайта', null, false, b => { noSite = !noSite; b.setAttribute('aria-pressed', noSite); applyFilter(); }, 'nosite');
 chip('★ Избранное', null, false, b => {
@@ -1045,7 +1076,7 @@ const fmtDist = d => d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toF
 function itemHtml({ p, d }) {
   const l = lead(p);
   return `<button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
-    <span class="bar" style="background:${CATS[p.cat].color}"></span>
+    <span class="ic" style="--c:${CATS[p.cat].color}">${catIcon(p.cat)}</span>
     <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
     <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
     <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Нет сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
@@ -1204,7 +1235,7 @@ function select(id, fly) {
       <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
   $('#card').innerHTML = `
     <div class="card-h"><div>
-      <span class="tag" style="color:${c.color}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>
+      <span class="tag" style="color:${c.color}"><span class="cico">${catIcon(p.cat)}</span>${esc(c.name)}</span>
       <h2>${esc(p.name)}</h2></div>
       <div class="card-btns"><button class="star" type="button" id="fav" aria-pressed="${isFav(p.id)}" aria-label="В избранное">${isFav(p.id) ? '★' : '☆'}</button>
       <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div></div>
@@ -1538,6 +1569,34 @@ addEventListener('keydown', e => {
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });
+
+/* ---------- 3D-знак на экране «Начать» ----------
+   Кольцо-«о» собрано из 14 слоёв SVG друг за другом по глубине: при повороте видна толщина.
+   Задние слои темнее (как тень на боковине), спереди — акцентный цвет темы, точка висит перед кольцом. */
+(function logo3d() {
+  const box = $('#logo3d'); if (!box) return;
+  const inner = box.firstElementChild, N = 14;
+  const ring = 'M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87';
+  let html = '';
+  for (let i = N - 1; i >= 0; i--) {
+    const k = i / (N - 1);   // 0 — передний слой, 1 — самый задний
+    html += `<svg viewBox="0 0 24 24" style="transform:translateZ(${-i * 1.15}px)"><path d="${ring}" style="stroke:color-mix(in srgb,var(--accent) ${100 - k * 45}%,#0B1424)"/></svg>`;
+  }
+  html += `<svg viewBox="0 0 24 24" style="transform:translateZ(9px)"><circle cx="18" cy="6" r="2.9"/></svg>`;
+  inner.innerHTML = html;
+  // поворот за мышкой или пальцем; отпустили — снова само покачивается
+  const turn = e => {
+    const r = box.getBoundingClientRect();
+    const dx = Math.max(-1, Math.min(1, (e.clientX - r.left - r.width / 2) / (r.width * 1.2)));
+    const dy = Math.max(-1, Math.min(1, (e.clientY - r.top - r.height / 2) / (r.height * 1.2)));
+    inner.classList.add('held');
+    inner.style.transform = `rotateY(${dx * 40}deg) rotateX(${-dy * 30}deg)`;
+  };
+  const card = box.closest('.gate-card') || box;
+  card.addEventListener('pointermove', turn);
+  card.addEventListener('pointerleave', () => { inner.classList.remove('held'); inner.style.transform = ''; });
+  box.addEventListener('pointerup', () => { inner.classList.remove('held'); inner.style.transform = ''; });
+})();
 
 /* ---------- первый запуск: «Начать» и два вопроса ---------- */
 const HELLO_KEY = 'tochka-hello';
