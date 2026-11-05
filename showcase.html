@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -11,17 +11,17 @@
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
 <style>
 /* Макет: на ПК — телефон в центре и подсказки слева; на телефоне — демо на весь экран.
    Внутри: вид (карта / список / клиенты / профиль) + нижняя панель вкладок; на карте — выдвижная карточка. */
 :root{
-  --bg:#F4F5F1; --panel:#FFFFFF; --fg:#1B2126; --muted:#66717A; --line:#DCE1DC; --soft:#EEF1EC;
-  --accent:#D9472B; --accent-fg:#FFFFFF; --ok:#2E8A57; --warn:#B07A06; --gold:#E3A008;
+  --bg:#F2F4F7; --panel:#FFFFFF; --fg:#1F2328; --muted:#6B7280; --line:#E2E5EA; --soft:#F1F3F6;
+  --accent:#1E6FD9; --accent-fg:#FFFFFF; --ok:#1F9D55; --warn:#B07A06; --gold:#E3A008;
   --land:#E7EAE1; --block:#DADFD3; --road:#FFFFFF; --casing:#C9CFC4; --water:#B9D3E0; --park:#CFE0C4; --label:#5E6870;
-  --edge:#C7CDC6; --hi:rgba(255,255,255,.9); --stage:#E3E6DF;
-  --deep:0 2px 4px rgba(20,30,35,.08),0 14px 28px -6px rgba(20,30,35,.22),0 30px 60px -20px rgba(20,30,35,.28);
-  --f-display:"Unbounded","Onest",system-ui,sans-serif;
+  --edge:transparent; --hi:transparent; --stage:#E6E9EE;
+  --deep:0 1px 2px rgba(17,24,39,.08),0 2px 8px rgba(17,24,39,.08);
+  --f-display:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
   --c-barber:#2F6496; --c-beauty:#B0457A; --c-nails:#C2702E; --c-brows:#7A5BB5; --c-tattoo:#59636D; --c-spa:#2F8A72;
   --st-sent:#2F6496; --st-reply:#7A5BB5; --st-deal:#2E8A57; --st-no:#B3541E; --st-new:#8A949C;
@@ -33,21 +33,21 @@
   --wall-a:#DADDD6; --wall-b:#C6CAC2; --wood-a:#B89B7A; --wood-b:#9C7F5F; --glow:rgba(150,185,255,.28);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B; --soft:#202931;
-  --accent:#F0644A; --accent-fg:#1A0E0B; --ok:#5BC98A; --warn:#F0C04A; --gold:#F0B429;
+  --bg:#17191C; --panel:#202327; --fg:#E8EAED; --muted:#9AA0A6; --line:#30343A; --soft:#272A2F;
+  --accent:#5B9BF0; --accent-fg:#0B1424; --ok:#4CC27F; --warn:#E8B949; --gold:#E8B03A;
   --land:#161D22; --block:#1D252B; --road:#2C373F; --casing:#11171B; --water:#1B3341; --park:#1C2D23; --label:#8C99A1;
-  --edge:#0B0F12; --hi:rgba(255,255,255,.07); --stage:#0B0F12;
-  --deep:0 2px 4px rgba(0,0,0,.4),0 14px 28px -6px rgba(0,0,0,.55),0 30px 60px -20px rgba(0,0,0,.6);
+  --edge:transparent; --hi:transparent; --stage:#101214;
+  --deep:0 1px 2px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.3);
   --st-sent:#6FA3DA; --st-reply:#B39AE0; --st-deal:#5BC98A; --st-no:#F09A5E; --st-new:#7C8890;
   --desk-a:#1E2429; --desk-b:#161B1F; --mat:#0E1114; --mat-edge:#07090B; --kb:#2A3036; --kb-lo:#14181B;
   --cap:#3A4148; --cap-side:#1C2126; --cap-txt:#D7DDE0; --cap-mod:#30363C; --mouse:#3A4148; --mouse-side:#1C2126;
   --wall-a:#1A1F23; --wall-b:#101417; --wood-a:#5A4434; --wood-b:#3E2E22; --glow:rgba(120,160,255,.22); color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#11161A; --panel:#192026; --fg:#E7ECEE; --muted:#93A0A8; --line:#2A343B; --soft:#202931;
-  --accent:#F0644A; --accent-fg:#1A0E0B; --ok:#5BC98A; --warn:#F0C04A; --gold:#F0B429;
+  --bg:#17191C; --panel:#202327; --fg:#E8EAED; --muted:#9AA0A6; --line:#30343A; --soft:#272A2F;
+  --accent:#5B9BF0; --accent-fg:#0B1424; --ok:#4CC27F; --warn:#E8B949; --gold:#E8B03A;
   --land:#161D22; --block:#1D252B; --road:#2C373F; --casing:#11171B; --water:#1B3341; --park:#1C2D23; --label:#8C99A1;
-  --edge:#0B0F12; --hi:rgba(255,255,255,.07); --stage:#0B0F12;
-  --deep:0 2px 4px rgba(0,0,0,.4),0 14px 28px -6px rgba(0,0,0,.55),0 30px 60px -20px rgba(0,0,0,.6);
+  --edge:transparent; --hi:transparent; --stage:#101214;
+  --deep:0 1px 2px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.3);
   --st-sent:#6FA3DA; --st-reply:#B39AE0; --st-deal:#5BC98A; --st-no:#F09A5E; --st-new:#7C8890;
   --desk-a:#1E2429; --desk-b:#161B1F; --mat:#0E1114; --mat-edge:#07090B; --kb:#2A3036; --kb-lo:#14181B;
   --cap:#3A4148; --cap-side:#1C2126; --cap-txt:#D7DDE0; --cap-mod:#30363C; --mouse:#3A4148; --mouse-side:#1C2126;
@@ -139,7 +139,8 @@ button{cursor:pointer}
 .world{position:absolute;left:0;top:0;width:2400px;height:1600px;will-change:transform}
 .world canvas{position:absolute;inset:0;width:100%;height:100%}
 .pin{position:absolute;width:30px;height:40px;margin:-40px 0 0 -15px;border:0;padding:0;background:none;transform-origin:50% 100%;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
-.pin svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 3px rgba(0,0,0,.25))}
+.pin svg{width:100%;height:100%;display:block}
+.logo{font-family:var(--f-display);font-weight:700;letter-spacing:-.02em;line-height:1;white-space:nowrap}.logo-o{width:.7em;height:.7em;margin:0 .015em;vertical-align:-.07em;overflow:visible}.logo-o path{fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round}.logo-o circle{fill:var(--accent)}
 .pin.hide{display:none}
 .pin.sel{transform:scale(1.35);z-index:3}
 .pin.sel::after{content:"";position:absolute;left:50%;bottom:-6px;width:26px;height:10px;margin-left:-13px;border-radius:50%;border:2px solid var(--accent);animation:ring 1.6s ease-out infinite}
@@ -170,7 +171,7 @@ button{cursor:pointer}
 .btn{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:10px 14px;font-weight:600;font-size:14px;
   box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge);transition:transform .12s ease}
 .btn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 var(--hi),0 0 0 var(--edge)}
-.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 0 color-mix(in srgb,var(--accent) 65%,#000)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .btn.star[aria-pressed="true"]{color:var(--gold)}
 .rows{display:grid;margin-top:8px}
 .row{display:grid;grid-template-columns:92px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line);font-size:14.5px}
@@ -445,7 +446,7 @@ body.fullon .stage > *:not(.device){visibility:hidden}
           <div class="plist">
             <div class="pi"><span>Тема</span>
               <div class="seg" role="group" aria-label="Тема" id="theme">
-                <button type="button" data-t="auto" aria-pressed="true">Авто</button><button type="button" data-t="light" aria-pressed="false">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button>
+                <button type="button" data-t="light" aria-pressed="true">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button><button type="button" data-t="auto" aria-pressed="false">Авто</button>
               </div></div>
             <div class="pi"><span>Напоминания<small>Красный значок, когда пора написать</small></span><button class="sw" type="button" role="switch" aria-checked="true" aria-label="Напоминания"></button></div>
             <div class="pi"><span>3D-карта<small>Наклон и объёмные дома</small></span><button class="sw" type="button" role="switch" aria-checked="true" aria-label="3D-карта"></button></div>
@@ -458,7 +459,7 @@ body.fullon .stage > *:not(.device){visibility:hidden}
 
       <nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы">
         <span class="tabpill" id="tabpill"></span>
-        <div class="rail-brand"><i></i>Точка</div>
+        <div class="rail-brand"><span class="logo" aria-label="Точка">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div>
         <button class="tab" role="tab" aria-selected="true" data-v="v-map" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Карта</button>
         <button class="tab" role="tab" aria-selected="false" data-v="v-list" type="button">
@@ -547,18 +548,29 @@ function drawMap() {
   [['ул. Кирова', 40, 205], ['ул. Ленина', 40, 435], ['проспект Мира', 40, 725], ['ул. Чехова', 40, 1005], ['ул. Лесная', 40, 1305], ['ул. Кирова', 1140, 205], ['ул. Ленина', 1540, 435], ['проспект Мира', 1840, 725], ['ул. Садовая', 1140, 1305]].forEach(([t, x, y]) => ctx.fillText(t, x, y));
   ctx.save(); ctx.translate(565, 300); ctx.rotate(Math.PI / 2); ctx.fillText('ул. Советская', 0, 0); ctx.restore();
   ctx.save(); ctx.translate(265, 560); ctx.rotate(Math.PI / 2); ctx.fillText('ул. Пушкина', 0, 0); ctx.restore();
-  ctx.font = '500 15px Unbounded, Onest, sans-serif'; ctx.globalAlpha = .75; ctx.fillText('Сквер', 630, 320); ctx.fillText('Парк Победы', 1880, 870); ctx.fillText('Сад', 1240, 1160); ctx.fillText('р. Светлая', 380, 1140); ctx.fillText('р. Светлая', 1980, 1090); ctx.globalAlpha = 1;
+  ctx.font = '500 15px Onest, system-ui, sans-serif'; ctx.globalAlpha = .75; ctx.fillText('Сквер', 630, 320); ctx.fillText('Парк Победы', 1880, 870); ctx.fillText('Сад', 1240, 1160); ctx.fillText('р. Светлая', 380, 1140); ctx.fillText('р. Светлая', 1980, 1090); ctx.globalAlpha = 1;
 }
 
 /* пины */
 const world = $('#world');
-const pinSvg = c => `<svg viewBox="0 0 30 40"><defs><linearGradient id="g${c}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient></defs>
-  <path d="M15 39C12 32 2 26 2 15a13 13 0 0 1 26 0c0 11-10 17-13 24z" fill="${cc(c)}" stroke="#fff" stroke-width="2"/><path d="M15 39C12 32 2 26 2 15a13 13 0 0 1 26 0c0 11-10 17-13 24z" fill="url(#g${c})"/><circle cx="15" cy="15" r="5" fill="#fff"/></svg>`;
+// 3D-метки как в приложении: объём без глянца, тень на земле, иконка категории (контуры — как CAT_ICONS в app.js)
+const CAT_ICONS = {
+  barber: 'M10 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M8.6 14.6L17 4M15.4 14.6L7 4',
+  beauty: 'M4 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0M14 6h5.5v4H14M8.5 13l-1.2 7h3l1.2-6.4',
+  nails: 'M10 3h4v5h-4zM7 10.5A2.5 2.5 0 0 1 9.5 8h5a2.5 2.5 0 0 1 2.5 2.5V18.5A2.5 2.5 0 0 1 14.5 21h-5A2.5 2.5 0 0 1 7 18.5z',
+  brows: 'M3 14c3.2-5 14.8-5 18 0c-3.2 5-14.8 5-18 0zM14.5 14a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M6.5 8.8L5.6 6.6M12 7.5V5M17.5 8.8l.9-2.2',
+  tattoo: 'M12 3c3 5 6 8 6 11.5a6 6 0 0 1-12 0C6 11 9 8 12 3z',
+  spa: 'M12 20c-5 0-8-3.6-8-8.6c4 0 7 2 8 5c1-3 4-5 8-5c0 5-3 8.6-8 8.6zM12 15.5c-2-2.2-2-5.5 0-8c2 2.5 2 5.8 0 8z'
+};
+const pinSvg = c => `<svg viewBox="0 0 30 41"><defs><radialGradient id="g${c}" cx=".35" cy=".25" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></radialGradient></defs>
+  <ellipse cx="15" cy="38.5" rx="7" ry="2.2" fill="rgba(17,24,39,.22)"/>
+  <path d="M15 37C12 31 3.5 25.5 3.5 15a11.5 11.5 0 0 1 23 0c0 10.5-8.5 16-11.5 22z" fill="${cc(c)}" stroke="#fff" stroke-width="1.4"/><path d="M15 37C12 31 3.5 25.5 3.5 15a11.5 11.5 0 0 1 23 0c0 10.5-8.5 16-11.5 22z" fill="url(#g${c})"/>
+  <circle cx="15" cy="15" r="7.8" fill="#000" fill-opacity=".1"/><g transform="translate(8.7 8.7) scale(.525)"><path d="${CAT_ICONS[c] || CAT_ICONS.beauty}" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></svg>`;
 P.forEach((p, i) => {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'pin'; b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
   b.setAttribute('aria-label', p.name); b.dataset.id = p.id;
-  b.innerHTML = (p.score >= 80 ? '<span class="glow"></span>' : '') + pinSvg(p.cat);
+  b.innerHTML = pinSvg(p.cat);
   if (!REDUCE) b.animate([{ transform: 'translateY(-60px)', opacity: 0 }, { transform: 'translateY(4px)', opacity: 1, offset: .75 }, { transform: 'none' }], { duration: 520, delay: 120 + i * 60, easing: 'ease-out', fill: 'backwards' });
   b.addEventListener('click', e => { if (e.detail === 0) select(p.id); });   // клавиатура; касания обрабатывает карта
   world.appendChild(b);
