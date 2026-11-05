@@ -41,7 +41,8 @@ VK_KEY = os.environ.get("VK_SERVICE_KEY", "").strip()
 SITE_TAGS = ("website", "contact:website", "url")
 # соцсети, онлайн-запись и каталоги — это не свой сайт (как SOCIAL_HOSTS в app.js)
 SOCIAL = re.compile(r"(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|instagram\.com|t\.me|telegram\.me|wa\.me|ok\.ru|youtube\.com|"
-                    r"tiktok\.com|facebook\.com|2gis\.ru|yandex\.ru|avito\.ru|zoon\.ru|flamp\.ru)$", re.I)
+                    r"tiktok\.com|facebook\.com|2gis\.ru|2gis\.biz|clients\.site|business\.site|yandex\.ru|avito\.ru|zoon\.ru|flamp\.ru)$", re.I)
+# 2gis.biz, clients.site, business.site — бесплатные визитки 2ГИС, Яндекс Бизнеса и Google: не свой сайт, живость не проверяем
 BOOKING = re.compile(r"(^|\.)(taplink\.(cc|ws|at|ru)|yclients\.com|dikidi\.(net|ru|app)|linktr\.ee|booksy\.com|sonline\.su|"
                      r"easyweek\.(io|ru)|arnica\.pro|beauty\.dikidi\.net|n\d+\.yclients\.com|bio\.link|mssg\.me|hipolink\.(me|net))$", re.I)
 PARKED = re.compile(r"домен\s+(продается|продаётся|не\s+делегирован|зарегистрирован)|domain\s+(is\s+)?(for\s+sale|parked)|"

@@ -187,7 +187,7 @@ function loadDb(c) {
 const loadCityDb = loadDb;
 // scripts/check_sites.py: own — нашли свой сайт, rec — только онлайн-запись, none — проверили и сайт не нашли
 const CHECK_HOW = { d: 'по названию', v: 'во ВКонтакте', dv: 'по названию и во ВКонтакте' };
-const checkNote = p => p.siteDead ? `<small class="dead">⚠️ Ссылка не работает — страница удалена или домен истёк (проверили ${fmtDay(Date.parse(p.siteDead))}). Хороший повод предложить новый сайт</small>` : !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
+const checkNote = p => p.siteDead && siteKind(p) === 'none' ?`<small class="dead">⚠️ Ссылка не работает — страница удалена или домен истёк (проверили ${fmtDay(Date.parse(p.siteDead))}). Хороший повод предложить новый сайт</small>` : !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
   : p.chk.s === 'own' ? '✓ Нашли при проверке ' + (CHECK_HOW[p.chk.how] || '') : '✓ Ссылка на запись найдена ' + (CHECK_HOW[p.chk.how] || '')}, ${fmtDay(Date.parse(p.chk.d))}</small>`;
 function applyChecks(m) {
   // указанный сайт или Taplink не открывается (удалён, домен истёк) — для поиска клиентов это «сайта нет»
@@ -534,13 +534,15 @@ function toggleFav(id) {
 
 /* ---------- потенциал клиента: насколько заведению нужен сайт ---------- */
 // Страницы соцсетей, онлайн-записи и справочников — это не собственный сайт
-const SOCIAL_HOSTS = /(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|m\.vk\.com|instagram\.com|t\.me|telegram\.me|taplink\.(cc|ws|at|ru)|wa\.me|ok\.ru|youtube\.com|tiktok\.com|facebook\.com|dikidi\.(net|ru|app)|yclients\.com|2gis\.ru|yandex\.ru|avito\.ru|linktr\.ee|zoon\.ru|flamp\.ru)$/i;
+const SOCIAL_HOSTS = /(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|m\.vk\.com|instagram\.com|t\.me|telegram\.me|taplink\.(cc|ws|at|ru)|wa\.me|ok\.ru|youtube\.com|tiktok\.com|facebook\.com|dikidi\.(net|ru|app)|yclients\.com|2gis\.ru|2gis\.biz|clients\.site|business\.site|yandex\.ru|avito\.ru|linktr\.ee|zoon\.ru|flamp\.ru)$/i;   // 2gis.biz, clients.site, business.site — бесплатные визитки 2ГИС, Яндекс Бизнеса и Google, а не свой сайт
 function siteKind(p) {
-  if (!p.site || p.siteDead) return 'none';
+  if (!p.site) return 'none';
+  let kind = 'own';
   try {
     const host = new URL(/^[a-z]+:\/\//i.test(p.site) ? p.site : 'https://' + p.site).hostname.replace(/^www\./, '');
-    return SOCIAL_HOSTS.test(host) ? 'social' : 'own';
-  } catch { return 'own'; }
+    if (SOCIAL_HOSTS.test(host)) kind = 'social';
+  } catch { /* странный адрес — считаем своим сайтом */ }
+  return p.siteDead && kind === 'own' || p.siteDead && /taplink/i.test(p.site) ? 'none' : kind;   // мёртвым считаем только свой сайт и Taplink
 }
 const leadCache = new WeakMap();
 const LV = { high: 'высокий', mid: 'средний', low: 'низкий' };
@@ -549,7 +551,7 @@ function lead(p) {
   if (l) return l;
   const kind = siteKind(p), why = [];
   let s = 0;
-  if (kind === 'none' && p.siteDead) { s += 60; why.push('указанный сайт не открывается'); }
+  if (kind === 'none' && p.site && p.siteDead) { s += 60; why.push('указанный сайт не открывается'); }
   else if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
   else if (kind === 'none') { s += 55; why.push('нет сайта'); }
   else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
