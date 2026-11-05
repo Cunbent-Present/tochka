@@ -89,7 +89,11 @@ a:hover > .dl-ico .dl-tray,a:focus-visible > .dl-ico .dl-tray{animation-duration
 @keyframes dl-drop{0%,60%,100%{transform:translateY(0);opacity:1}75%{transform:translateY(4px);opacity:1}82%{transform:translateY(4px);opacity:0}83%{transform:translateY(-6px);opacity:0}95%{transform:translateY(0);opacity:1}}
 @keyframes dl-catch{0%,72%,100%{transform:scaleY(1)}78%{transform:scaleY(.8)}86%{transform:scaleY(1)}}
 .pi-dl{justify-content:flex-start;gap:12px}
-.pi-dl .dl-ico{width:22px;height:22px;flex:none;color:var(--accent)}
+/* в Профиле — та же объёмная «клавиша», только маленькая */
+.pi-dl .dl-ico{width:36px;height:36px;padding:7px;flex:none;border-radius:11px;color:var(--accent-fg);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff),var(--accent));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 0 color-mix(in srgb,var(--accent) 62%,#000);transform:translateY(-2px)}
+.pi-dl:active .dl-ico{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
 .pi-dl .chev{margin-left:auto}
 @media (prefers-reduced-motion:reduce){.dl-arrow,.dl-tray{animation:none}}
 /* логотип: «Т◌чка» — вместо «о» кольцо с разрывом, в разрыве точка (знак как в icons/logo.svg) */
@@ -342,10 +346,13 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
   .tabpill{height:auto}
   .rail-brand{display:grid;place-items:center;align-content:center;gap:6px;font-size:15px}
   .rail-dl{display:grid;justify-items:center;align-content:center;gap:3px;position:absolute;left:8px;right:8px;bottom:calc(12px + env(safe-area-inset-bottom,0px));height:60px;border-radius:14px;
-    text-decoration:none;font-size:11.5px;font-weight:600;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel));
-    border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);transition:background-color .2s,color .2s}
-  .rail-dl:hover{background:var(--accent);color:var(--accent-fg)}
+    text-decoration:none;font-size:11.5px;font-weight:600;color:var(--accent-fg);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff),var(--accent));
+    transform:translateY(-3px);transition:transform .12s ease,box-shadow .12s ease;--dl-edge:color-mix(in srgb,var(--accent) 62%,#000);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 0 var(--dl-edge),0 9px 14px -6px color-mix(in srgb,var(--accent) 55%,transparent)}
+  .rail-dl:hover{transform:translateY(-4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 5px 0 var(--dl-edge),0 12px 18px -6px color-mix(in srgb,var(--accent) 60%,transparent)}
+  .rail-dl:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 var(--dl-edge),0 2px 4px -2px rgba(0,0,0,.3)}
   .rail-dl svg{width:22px;height:22px}
+  @media (max-height:540px){.rail-dl{display:none}}   /* в низком окне налезает на вкладки — скачать можно из Профиля */
   .tab .badge{left:calc(50% + 8px)}
   .view{inset:0 0 0 var(--rail)}
   .toast{bottom:28px;left:calc(50% + var(--rail) / 2)}
@@ -374,10 +381,22 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 }
 
 /* ---------- Точка Pro ---------- */
-.pro-mark{display:inline-grid;place-items:center;font:700 10px/1 var(--f-display);letter-spacing:.08em;color:var(--gold-fg);background:var(--gold);
-  border-radius:6px;padding:4px 6px;vertical-align:middle;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 0 #A87508}
-.pro-mark.sm{font-size:8px;padding:3px 4px;display:none}
-.is-pro .pro-mark.sm{display:inline-grid}
+/* значок PRO: графитовая плашка с объёмом (свет сверху, тень снизу) и золотым кристаллом,
+   кристалл раз в несколько секунд поворачивается в 3D */
+.pro-mark{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--f-display);letter-spacing:.07em;color:#fff;
+  background:linear-gradient(180deg,#30353C,#16191D);border-radius:7px;padding:4px 7px 4px 5px;vertical-align:middle;perspective:60px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.45),0 1px 2px rgba(17,24,39,.3)}
+:root[data-theme="dark"] .pro-mark{background:linear-gradient(180deg,#3A4048,#22262B);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px rgba(255,255,255,.06)}
+@media (prefers-color-scheme: dark){:root:not([data-theme]) .pro-mark{background:linear-gradient(180deg,#3A4048,#22262B);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px rgba(255,255,255,.06)}}
+.gem{width:12px;height:12px;overflow:visible;flex:none;transform-origin:50% 55%;animation:gem-turn 6s ease-in-out infinite}
+.gem .g-t{fill:#FFD86E}
+.gem .g-b{fill:#E09A10}
+.gem .g-l{fill:none;stroke:rgba(120,70,0,.45);stroke-width:.7;stroke-linejoin:round}
+@keyframes gem-turn{0%,78%{transform:rotateY(0)}100%{transform:rotateY(360deg)}}
+.pro-mark.sm{font-size:8px;padding:3px 5px 3px 4px;gap:3px;display:none}
+.pro-mark.sm .gem{width:9px;height:9px}
+.is-pro .pro-mark.sm{display:inline-flex}
+@media (prefers-reduced-motion:reduce){.gem{animation:none}}
 .pro-card{max-width:520px;gap:14px}
 .pro-why{margin:0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--gold) 14%,var(--panel));border:1px solid color-mix(in srgb,var(--gold) 40%,transparent);font-size:14px;line-height:1.45}
 .pro-list{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:14px;line-height:1.4}

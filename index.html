@@ -33,7 +33,7 @@
   <!-- вкладки: снизу на телефоне, слева на ПК -->
   <nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы">
     <span class="tabpill" id="tabpill"></span>
-    <div class="rail-brand"><span class="logo" role="img" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></span><span class="pro-mark sm">PRO</span></div>
+    <div class="rail-brand"><span class="logo" role="img" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></span><span class="pro-mark sm"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span></div>
     <button class="tab" role="tab" aria-selected="true" data-v="v-map" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Карта</button>
     <button class="tab" role="tab" aria-selected="false" data-v="v-list" type="button">
@@ -117,7 +117,7 @@
     <div class="v-head"><h2>Профиль</h2></div>
     <div class="v-scroll">
       <div class="plist">
-        <button class="pi pi-pro" type="button" id="pPro"><span><b>Подписка</b><small id="pProSub"></small></span><span class="chev">›</span></button>
+        <button class="pi pi-pro" type="button" id="pPro"><span><b>Подписка <span class="pro-mark"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span></b><small id="pProSub"></small></span><span class="chev">›</span></button>
         <button class="pi" type="button" id="pAcc"><span>Аккаунт<small id="pAccSub"></small></span><span class="chev">›</span></button>
         <button class="pi pi-adm" type="button" id="pAdm" hidden><span><b>Админ-панель</b><small id="pAdmSub">Пользователи, подписки, доход</small></span><span class="chev">›</span></button>
         <div class="pi"><span>Тема</span>
@@ -193,7 +193,7 @@
 <!-- аккаунт и подписка -->
 <div class="sheet" id="pro" hidden>
   <div class="sheet-card pro-card" role="dialog" aria-labelledby="proTitle">
-    <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark">PRO</span> Подписка</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
+    <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span> Подписка</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
     <div class="acc-box" id="accBox"></div>
     <div class="ms-acts" id="accActs"></div>
   </div>
