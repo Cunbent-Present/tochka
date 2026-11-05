@@ -1218,7 +1218,14 @@ addEventListener('resize', () => { measureDrawer(); setSnap(snap, false); movePi
 /* ---------- карточка ---------- */
 const DAYS = { Mo: 'Пн', Tu: 'Вт', We: 'Ср', Th: 'Чт', Fr: 'Пт', Sa: 'Сб', Su: 'Вс', PH: 'праздники', off: 'выходной', closed: 'закрыто' };
 const ruHours = h => h === '24/7' ? 'Круглосуточно' : h.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH|off|closed)\b/g, m => DAYS[m]).replace(/;\s*/g, '; ');
-const handle = (v, base) => /^https?:/.test(v) ? v : base + v.replace(/^@/, '');
+// Ссылка на соцсеть из OpenStreetMap. Там пишут по-разному: «@name», «name», «vk.com/name», «www.instagram.com/name/»,
+// полный адрес, иногда несколько через «;». Берём первую и достраиваем адрес, не приклеивая домен второй раз.
+function handle(v, base) {
+  const s = String(v).trim().split(/[;,\s]+/).find(Boolean) || '';
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^(www\.|m\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(s)) return 'https://' + s;   // домен без https://
+  return base + s.replace(/^@/, '');
+}
 function contactText(p) {
   return [
     `${p.name} (${CATS[p.cat].name})`,
@@ -1246,7 +1253,7 @@ function select(id, fly) {
   const soc = [
     p.tg && `<a href="${esc(handle(p.tg, 'https://t.me/'))}" target="_blank" rel="noopener">Telegram</a>`,
     p.vk && `<a href="${esc(handle(p.vk, 'https://vk.com/'))}" target="_blank" rel="noopener">VK</a>`,
-    p.inst && `<a href="${esc(handle(p.inst, 'https://instagram.com/'))}" target="_blank" rel="noopener">Instagram</a>`
+    p.inst && `<a href="${esc(handle(p.inst, 'https://instagram.com/'))}" target="_blank" rel="noopener" title="В России Instagram открывается только через VPN и просит войти">Instagram</a>`
   ].filter(Boolean).join(' · ');
   const addr = [p.city, p.addr].filter(Boolean).join(', ');
   const l = lead(p);
