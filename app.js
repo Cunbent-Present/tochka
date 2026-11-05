@@ -85,7 +85,7 @@ function parseEl(el) {
     addr: [street, house].filter(Boolean).join(', '),
     city: city || '',
     phone: t.phone || t['contact:phone'] || '',
-    site: t.website || t['contact:website'] || t.url || '',
+    site: (t.website || t['contact:website'] || t.url || '').split(/\s*;\s*/)[0],   // бывает несколько через «;» — берём первый
     email: t.email || t['contact:email'] || '',
     hours: t.opening_hours || '',
     vk: t['contact:vk'] || '', tg: t['contact:telegram'] || '', inst: t['contact:instagram'] || '',
@@ -187,10 +187,18 @@ function loadDb(c) {
 const loadCityDb = loadDb;
 // scripts/check_sites.py: own — нашли свой сайт, rec — только онлайн-запись, none — проверили и сайт не нашли
 const CHECK_HOW = { d: 'по названию', v: 'во ВКонтакте', dv: 'по названию и во ВКонтакте' };
-const checkNote = p => !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
+const checkNote = p => p.siteDead ? `<small class="dead">⚠️ Ссылка не работает — страница удалена или домен истёк (проверили ${fmtDay(Date.parse(p.siteDead))}). Хороший повод предложить новый сайт</small>` : !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
   : p.chk.s === 'own' ? '✓ Нашли при проверке ' + (CHECK_HOW[p.chk.how] || '') : '✓ Ссылка на запись найдена ' + (CHECK_HOW[p.chk.how] || '')}, ${fmtDay(Date.parse(p.chk.d))}</small>`;
 function applyChecks(m) {
-  for (const [id, [s, url, d, how]] of Object.entries(m)) {
+  // указанный сайт или Taplink не открывается (удалён, домен истёк) — для поиска клиентов это «сайта нет»
+  for (const [id, [st, d]] of Object.entries(m._links || {})) {
+    const p = places.get(id); if (!p) continue;
+    p.siteDead = st === 'dead' ? d : '';
+    leadCache.delete(p);
+  }
+  for (const [id, v] of Object.entries(m)) {
+    if (id === '_links') continue;
+    const [s, url, d, how] = v;
     const p = places.get(id); if (!p) continue;
     p.chk = { s, d, how };
     if ((s === 'own' || s === 'rec') && url && siteKind(p) !== 'own') p.site = url;
@@ -528,7 +536,7 @@ function toggleFav(id) {
 // Страницы соцсетей, онлайн-записи и справочников — это не собственный сайт
 const SOCIAL_HOSTS = /(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|m\.vk\.com|instagram\.com|t\.me|telegram\.me|taplink\.(cc|ws|at|ru)|wa\.me|ok\.ru|youtube\.com|tiktok\.com|facebook\.com|dikidi\.(net|ru|app)|yclients\.com|2gis\.ru|yandex\.ru|avito\.ru|linktr\.ee|zoon\.ru|flamp\.ru)$/i;
 function siteKind(p) {
-  if (!p.site) return 'none';
+  if (!p.site || p.siteDead) return 'none';
   try {
     const host = new URL(/^[a-z]+:\/\//i.test(p.site) ? p.site : 'https://' + p.site).hostname.replace(/^www\./, '');
     return SOCIAL_HOSTS.test(host) ? 'social' : 'own';
@@ -541,7 +549,8 @@ function lead(p) {
   if (l) return l;
   const kind = siteKind(p), why = [];
   let s = 0;
-  if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
+  if (kind === 'none' && p.siteDead) { s += 60; why.push('указанный сайт не открывается'); }
+  else if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
   else if (kind === 'none') { s += 55; why.push('нет сайта'); }
   else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
   else why.push('уже есть сайт');

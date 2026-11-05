@@ -18,6 +18,7 @@
 import json
 import os
 import re
+import socket
 import sys
 import time
 import urllib.error
@@ -146,6 +147,34 @@ def check_domain(name, phone, town):
     return ""
 
 
+TAPLINK = re.compile(r"(^|\.)taplink\.(cc|at|ws|ru)$", re.I)
+
+
+def link_alive(url):
+    """Открывается ли указанный у заведения сайт или Taplink.
+    True — да, False — точно нет (домена не существует, 404, припаркован, Taplink кинул на свою главную),
+    None — не понять (сервер не ответил вовремя) — такие не помечаем, чтобы не ошибиться."""
+    for attempt in range(3):   # сервер не успел ответить — пробуем ещё, с паузой
+        try:
+            final, text = fetch_page(url, timeout=15)
+            break
+        except urllib.error.HTTPError as e:
+            return False if e.code in (404, 410) else None
+        except urllib.error.URLError as e:
+            if isinstance(getattr(e, "reason", None), socket.gaierror):
+                return False
+        except Exception:
+            pass
+        time.sleep(4 * (attempt + 1))
+    else:
+        return None
+    host = host_of(final)
+    if TAPLINK.search(host) and not host.endswith(".taplink.ws"):
+        # удалённую страницу Taplink перекидывает на свою главную (taplink.at/en/)
+        return urllib.parse.urlsplit(final).path.strip("/") not in ("", "en", "ru")
+    return not PARKED.search(text[:20000])
+
+
 def vk_sites(screen_names):
     """Поле «Сайт» сообществ ВКонтакте: {screen_name: site}. Нужен сервисный ключ VK_SERVICE_KEY."""
     out = {}
@@ -240,9 +269,12 @@ def main():
         checks = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
         rows = json.load(open(os.path.join(DATA, fname), encoding="utf-8"))
         region_town = stem(regions.get(slug, ""))
-        todo = []
+        links = checks.setdefault("_links", {})   # {id: ["ok" | "dead", дата]} — открывается ли указанный сайт или Taplink
+        todo, link_todo = [], []
         for pid, _lat, _lon, t in rows:
-            site = next((t[k] for k in SITE_TAGS if t.get(k)), "")
+            site = re.split(r"\s*;\s*", next((t[k] for k in SITE_TAGS if t.get(k)), ""))[0]   # несколько через «;» — первый
+            if site and kind_of(site) in ("own", "rec") and not (pid in links and links[pid][1] > stale):
+                link_todo.append((pid, site if re.match(r"^https?://", site, re.I) else "https://" + site))
             if site and kind_of(site) == "own":
                 continue          # свой сайт уже указан в OSM
             old = checks.get(pid)
@@ -250,9 +282,20 @@ def main():
                 continue          # проверяли недавно
             phone = (contacts.get(pid) or ("", ""))[0] or t.get("phone") or t.get("contact:phone") or ""
             todo.append((pid, t.get("name", ""), "" if phone == "*" else phone, town_of(t, region_town)))
-        if not todo:
+        if not todo and not link_todo:
             continue
-        print(f"{slug}: проверяю {len(todo)}", flush=True)
+        print(f"{slug}: ищу сайт у {len(todo)}, проверяю ссылки у {len(link_todo)}", flush=True)
+
+        # 0) указанные сайты и Taplink — живы ли
+        dead = 0
+        if link_todo:
+            with ThreadPoolExecutor(max_workers=6) as pool:   # Taplink не любит много запросов сразу
+                alive = list(pool.map(lambda x: link_alive(x[1]), link_todo))
+            for (pid, _), ok in zip(link_todo, alive):
+                if ok is not None:
+                    links[pid] = ["ok" if ok else "dead", today]
+                    dead += not ok
+            print(f"  мёртвых ссылок: {dead}", flush=True)
 
         # 1) ВКонтакте: поле «Сайт» у известных сообществ
         by_vk = {}
@@ -284,7 +327,7 @@ def main():
             if v[0] == "own":
                 checks[pid] = v
 
-        found = sum(1 for pid, *_ in todo if checks.get(pid, [""])[0] in ("own", "rec") and checks[pid][2] == today)
+        found = sum(1 for pid, *_ in todo if pid in checks and checks[pid][0] in ("own", "rec") and checks[pid][2] == today)
         done_total += len(todo); found_total += found
         with open(path, "w", encoding="utf-8") as f:
             json.dump(checks, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)

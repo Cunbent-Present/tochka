@@ -70,6 +70,7 @@ a{color:inherit}
 .tabpill{position:absolute;top:6px;left:0;height:calc(var(--tabh) - 12px);border-radius:16px;background:color-mix(in srgb,var(--accent) 11%,transparent);transition:transform .32s cubic-bezier(.2,.9,.25,1.1),width .32s,height .32s;z-index:0}
 .rail-brand,.rail-dl{display:none}
 .chk{color:var(--ok)!important}
+.dead{color:var(--warn)!important}
 /* 3D-знак на экране «Начать»: кольцо из слоёв по глубине (настоящий объём при повороте), точка выше кольца.
    Само покачивается; за мышкой или пальцем поворачивается (app.js, logo3d). */
 .logo3d{width:112px;height:112px;margin:2px auto 4px;perspective:520px;touch-action:none}
