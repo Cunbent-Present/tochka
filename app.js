@@ -176,12 +176,27 @@ function loadDb(c) {
         for (let i = Math.ceil(c.s / CELL); i < Math.floor(c.n / CELL); i++)
           for (let j = Math.ceil(c.w / CELL); j < Math.floor(c.e / CELL); j++) dbCells.add(i + ':' + j);
       c.loadedOk = true;
+      // проверка сайтов роботом — для регионов, если уже есть; без неё всё работает как раньше
+      if (c.cells) fetch(`data/checks/${c.slug}.json`, { cache: 'no-cache' })
+        .then(r => r.ok ? r.json() : null).then(m => { if (m) { applyChecks(m); applyFilter(); } }).catch(() => {});
     })
     .catch(() => { c.failedAt = Date.now(); dbLoading.delete(c.slug); });
   dbLoading.set(c.slug, pr);
   return pr;
 }
 const loadCityDb = loadDb;
+// scripts/check_sites.py: own — нашли свой сайт, rec — только онлайн-запись, none — проверили и сайт не нашли
+const CHECK_HOW = { d: 'по названию', v: 'во ВКонтакте', dv: 'по названию и во ВКонтакте' };
+const checkNote = p => !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
+  : p.chk.s === 'own' ? '✓ Нашли при проверке ' + (CHECK_HOW[p.chk.how] || '') : '✓ Ссылка на запись найдена ' + (CHECK_HOW[p.chk.how] || '')}, ${fmtDay(Date.parse(p.chk.d))}</small>`;
+function applyChecks(m) {
+  for (const [id, [s, url, d, how]] of Object.entries(m)) {
+    const p = places.get(id); if (!p) continue;
+    p.chk = { s, d, how };
+    if ((s === 'own' || s === 'rec') && url && siteKind(p) !== 'own') p.site = url;
+    leadCache.delete(p);
+  }
+}
 
 let loading = false, pending = false;
 async function loadView() {
@@ -496,7 +511,8 @@ function lead(p) {
   if (l) return l;
   const kind = siteKind(p), why = [];
   let s = 0;
-  if (kind === 'none') { s += 55; why.push('нет сайта'); }
+  if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
+  else if (kind === 'none') { s += 55; why.push('нет сайта'); }
   else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
   else why.push('уже есть сайт');
   const social = !!(p.tg || p.vk || p.inst || p.email || kind === 'social');
@@ -1196,7 +1212,7 @@ function select(id, fly) {
       ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${contacts}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}` : '<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>')}
+      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>${checkNote(p)}`)}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
       ${p.operator ? row('Компания', esc(p.operator)) : ''}
     </div>

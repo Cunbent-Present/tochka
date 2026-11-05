@@ -1,0 +1,58 @@
+# Каждый день проверяет, правда ли у заведений нет своего сайта (scripts/check_sites.py → data/checks/).
+# Запустить вручную: вкладка Actions → «Проверить сайты заведений» → Run workflow.
+name: Проверить сайты заведений
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 11 * * *'   # каждый день в 14:17 по Москве — после сбора базы
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/check_sites.py'
+      - '.github/workflows/sites.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data          # не одновременно со сбором базы — оба сохраняют файлы в репозиторий
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Настроить git
+        run: |
+          git config user.name "tochka-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Проверить сайты
+        timeout-minutes: 180
+        continue-on-error: true
+        env:
+          BUDGET_MIN: '150'
+          GIT_PUSH: '1'
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}   # телефоны и ссылки на ВК — для сверки
+          VK_SERVICE_KEY: ${{ secrets.VK_SERVICE_KEY }}             # необязательно: без него только домены
+        run: python scripts/check_sites.py
+
+      - name: Сохранить остаток в репозиторий
+        if: always()
+        run: |
+          git add data/checks
+          if git diff --cached --quiet; then
+            echo "Изменений нет"
+          else
+            git commit -m "Проверка сайтов: $(date -u +%Y-%m-%d)"
+            git pull --rebase -X theirs origin main
+            git push origin HEAD:main
+          fi

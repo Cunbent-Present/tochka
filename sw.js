@@ -1,5 +1,5 @@
-// Кэширует оболочку приложения, чтобы оно быстро открывалось и ставилось на телефон.
-const CACHE = 'tochka-v19';
+﻿// РљСЌС€РёСЂСѓРµС‚ РѕР±РѕР»РѕС‡РєСѓ РїСЂРёР»РѕР¶РµРЅРёСЏ, С‡С‚РѕР±С‹ РѕРЅРѕ Р±С‹СЃС‚СЂРѕ РѕС‚РєСЂС‹РІР°Р»РѕСЃСЊ Рё СЃС‚Р°РІРёР»РѕСЃСЊ РЅР° С‚РµР»РµС„РѕРЅ.
+const CACHE = 'tochka-v20';
 const SHELL = [
   './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
@@ -13,10 +13,10 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET') return;                       // запросы к Overpass идут мимо кэша
-  if (url.hostname.endsWith('openfreemap.org')) return;          // тайлы карты не кэшируем
-  if (url.hostname.endsWith('openstreetmap.org')) return;        // поиск городов — всегда свежий
-  // своё приложение: сначала сеть (свежая версия), при отсутствии сети — кэш
+  if (e.request.method !== 'GET') return;                       // Р·Р°РїСЂРѕСЃС‹ Рє Overpass РёРґСѓС‚ РјРёРјРѕ РєСЌС€Р°
+  if (url.hostname.endsWith('openfreemap.org')) return;          // С‚Р°Р№Р»С‹ РєР°СЂС‚С‹ РЅРµ РєСЌС€РёСЂСѓРµРј
+  if (url.hostname.endsWith('openstreetmap.org')) return;        // РїРѕРёСЃРє РіРѕСЂРѕРґРѕРІ вЂ” РІСЃРµРіРґР° СЃРІРµР¶РёР№
+  // СЃРІРѕС‘ РїСЂРёР»РѕР¶РµРЅРёРµ: СЃРЅР°С‡Р°Р»Р° СЃРµС‚СЊ (СЃРІРµР¶Р°СЏ РІРµСЂСЃРёСЏ), РїСЂРё РѕС‚СЃСѓС‚СЃС‚РІРёРё СЃРµС‚Рё вЂ” РєСЌС€
   e.respondWith(
     fetch(e.request).then(r => {
       if (r.ok && (url.origin === location.origin || url.hostname === 'unpkg.com')) {

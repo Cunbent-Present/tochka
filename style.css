@@ -69,6 +69,7 @@ a{color:inherit}
 .tab .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-size:11px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel)}
 .tabpill{position:absolute;top:6px;left:0;height:calc(var(--tabh) - 12px);border-radius:16px;background:color-mix(in srgb,var(--accent) 11%,transparent);transition:transform .32s cubic-bezier(.2,.9,.25,1.1),width .32s,height .32s;z-index:0}
 .rail-brand,.rail-dl{display:none}
+.chk{color:var(--ok)!important}
 /* значок «Скачать»: стрелка раз в несколько секунд опускается в лоток, при наведении — чаще; цвета — из темы */
 .dl-ico{overflow:visible}
 .dl-arrow{animation:dl-drop 3.2s ease-in-out infinite}
