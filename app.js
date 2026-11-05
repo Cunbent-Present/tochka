@@ -647,6 +647,14 @@ let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token,
 let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
 const isPro = () => !authOn() || !!(session && acct && (acct.admin || (acct.state !== 'expired' && acct.until > Date.now())));
 const fmtDate = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+// точная дата со временем: «6 ноября, 14:32»
+const fmtDateTime = t => fmtDate(t) + ', ' + new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+// сколько осталось: меньше двух суток — в часах и минутах, иначе в днях
+function leftText(t) {
+  const ms = Math.max(0, t - Date.now()), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60;
+  if (ms >= 2 * DAY) { const d = daysLeft(t); return `${d} ${plural(d, ['день', 'дня', 'дней'])}`; }
+  return h ? `${h} ч ${m} мин` : `${m} мин`;
+}
 const daysLeft = t => Math.max(0, Math.ceil((t - Date.now()) / DAY));
 
 async function api(path, { method = 'GET', body, token } = {}) {
@@ -847,7 +855,9 @@ function openPro() {
     acts.innerHTML = '';
   } else {
     const st = acct && acct.state;
-    box.innerHTML = `<b>${st === 'active' ? `Подписка активна до ${fmtDate(acct.until)}` : st === 'trial' ? `Пробный период: ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])} — до ${fmtDate(acct.until)}` : 'Подписки нет'}</b>
+    const trialFrom = acct && acct.state === 'trial' ? acct.until - PLAN.trialDays * DAY : 0;
+    box.innerHTML = `<b>${st === 'active' ? `Pro активен до ${fmtDateTime(acct.until)}` : st === 'trial' ? `Пробный период до ${fmtDateTime(acct.until)}` : 'Подписки нет'}</b>
+      ${st === 'active' || st === 'trial' ? `<span class="small">Осталось: ${leftText(acct.until)}${trialFrom ? ` · выдан ${fmtDateTime(trialFrom)}` : ''}</span>` : ''}
       <span class="small">Аккаунт: ${esc(session ? session.user.email : '')}. Подписка работает на всех устройствах — войдите с этой почтой на телефоне и на компьютере.</span>
       <span class="small">Продление: ${PLAN.price} ₽ в месяц${PLAN.yookassa ? ' — через СБП, картой или переводом в Telegram' : `, оплата в Telegram @${PLAN.tg}`}. Оплаченный месяц прибавляется к текущему сроку.</span>`;
     const verb = st === 'active' ? 'Продлить' : 'Оплатить';
@@ -867,7 +877,12 @@ function closePro() { $('#pro').hidden = true; }
 let admRows = [], admFilter = 'all', admArm = '';
 const admState = r => {
   const now = Date.now(), paid = r.paid_until ? Date.parse(r.paid_until) : 0, trial = Date.parse(r.created_at) + PLAN.trialDays * DAY;
-  return paid > now ? { k: 'paid', t: `Платит · до ${fmtDate(paid)}` } : trial > now ? { k: 'trial', t: `Пробный · до ${fmtDate(trial)}` } : { k: 'off', t: paid ? `Не продлил · был до ${fmtDate(paid)}` : 'Пробный закончился' };
+  return paid > now ? { k: 'paid', t: `Pro · до ${fmtDateTime(paid)}` } : trial > now ? { k: 'trial', t: `Пробный · до ${fmtDateTime(trial)}` } : { k: 'off', t: paid ? `Не продлил · Pro был до ${fmtDateTime(paid)}` : 'Пробный закончился' };
+};
+// точные даты для строки пользователя: когда выдан пробный и до какого времени, до какого времени Pro
+const admDates = r => {
+  const reg = Date.parse(r.created_at), trialEnd = reg + PLAN.trialDays * DAY;
+  return `Пробный: выдан ${fmtDateTime(reg)}, до ${fmtDateTime(trialEnd)}` + (r.paid_until ? `<br>Pro: до ${fmtDateTime(Date.parse(r.paid_until))}` : '');
 };
 const ago = t => { if (!t) return 'не входил'; const d = Math.floor((Date.now() - Date.parse(t)) / DAY); return d <= 0 ? 'сегодня' : d === 1 ? 'вчера' : `${d} ${plural(d, ['день', 'дня', 'дней'])} назад`; };
 async function loadAdmin() {
@@ -894,8 +909,9 @@ function drawAdmin() {
   const list = st.filter(x => (admFilter === 'all' || x.s.k === admFilter) && (!q || norm(x.r.email).includes(q)));
   $('#admList').innerHTML = list.length ? list.map(({ r, s }) => `<div class="adm-row">
       <div class="adm-main"><b>${esc(r.email)}</b><span class="adm-st st-${s.k}">${s.t}</span>
-      <span class="small">Регистрация ${fmtDate(Date.parse(r.created_at))} · вход ${ago(r.last_sign_in_at)}</span></div>
-      <div class="adm-acts"><button class="btn pri" type="button" data-ext="${r.user_id}" data-m="1">+1 мес</button>${s.k === 'paid' ? `<button class="btn" type="button" data-ext="${r.user_id}" data-m="0">${admArm === r.user_id ? 'Точно?' : 'Отключить'}</button>` : ''}</div>
+      <span class="small">${admDates(r)}</span>
+      <span class="small">Последний вход: ${ago(r.last_sign_in_at)}</span></div>
+      <div class="adm-acts"><button class="btn" type="button" data-ext="${r.user_id}" data-d="1">+1 день</button><button class="btn" type="button" data-ext="${r.user_id}" data-d="7">+7 дней</button><button class="btn pri" type="button" data-ext="${r.user_id}" data-m="1">+1 мес</button>${s.k === 'paid' ? `<button class="btn" type="button" data-ext="${r.user_id}" data-m="0">${admArm === r.user_id ? 'Точно?' : 'Отключить'}</button>` : ''}</div>
     </div>`).join('') : `<p class="small">${admRows.length ? 'Ничего не найдено' : 'Пока никто не зарегистрировался'}</p>`;
 }
 function openAdmin() { $('#adm').hidden = false; admArm = ''; loadAdmin(); }
@@ -909,16 +925,22 @@ $('#adm').addEventListener('click', async e => {
   if (rv) return moderateReview(rv);
   const b = e.target.closest('[data-ext]');
   if (!b) return;
-  const id = b.dataset.ext, months = +b.dataset.m;
-  if (months === 0 && admArm !== id) { admArm = id; return drawAdmin(); }   // отключение — со второго нажатия
+  const id = b.dataset.ext, days = +b.dataset.d || 0, months = +b.dataset.m;
+  if (!days && months === 0 && admArm !== id) { admArm = id; return drawAdmin(); }   // отключение — со второго нажатия
   admArm = ''; b.disabled = true;
   try {
-    const until = await api('/rest/v1/rpc/admin_extend', { method: 'POST', body: { target: id, months }, token: await token() });
+    // дни — supabase/admin_extend_days.sql, месяцы и отключение — admin_extend
+    const until = days
+      ? await api('/rest/v1/rpc/admin_extend_days', { method: 'POST', body: { target: id, days }, token: await token() })
+      : await api('/rest/v1/rpc/admin_extend', { method: 'POST', body: { target: id, months }, token: await token() });
     const row = admRows.find(r => r.user_id === id); if (row) row.paid_until = until;
     drawAdmin();
-    toast(months ? `Подписка продлена до ${fmtDate(Date.parse(until))}` : 'Подписка отключена', 2600);
+    toast(days || months ? `Pro продлён до ${fmtDateTime(Date.parse(until))}` : 'Подписка отключена', 2600);
     if (session && id === session.user.id) loadStatus();
-  } catch (err) { b.disabled = false; toast('Не получилось: ' + err.message, 3000); }
+  } catch (err) {
+    b.disabled = false;
+    toast(/admin_extend_days|Could not find/.test(err.message) ? 'Сначала запустите supabase/admin_extend_days.sql в Supabase' : 'Не получилось: ' + err.message, 3600);
+  }
 });
 /* отзывы (supabase/reviews.sql): одобренные видны всем, свой пишет вошедший, одобряет админ */
 const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
@@ -1548,8 +1570,8 @@ function renderCrm() {
 const REM_KEY = 'tochka-remind';
 function renderProfile() {
   $('#pProSub').textContent = !authOn() ? 'Бета-версия — сейчас всё бесплатно'
-    : !acct ? '—' : acct.state === 'active' ? `Активна до ${fmtDate(acct.until)}`
-    : acct.state === 'trial' ? `Пробный период · осталось ${daysLeft(acct.until)} ${plural(daysLeft(acct.until), ['день', 'дня', 'дней'])}` : 'Закончилась — продлите';
+    : !acct ? '—' : acct.state === 'active' ? `Активна до ${fmtDateTime(acct.until)}`
+    : acct.state === 'trial' ? `Пробный период до ${fmtDateTime(acct.until)} · осталось ${leftText(acct.until)}` : 'Закончилась — продлите';
   $('#pAcc').hidden = !authOn();
   $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
   $('#pAdm').hidden = !(authOn() && session && acct && acct.admin);

@@ -496,6 +496,6 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 .adm-main b{font-size:14.5px;overflow-wrap:anywhere}
 .adm-st{font-size:12.5px;font-weight:600}
 .st-paid{color:#2E9D57}.st-trial{color:#C98A12}.st-off{color:var(--muted)}
-.adm-acts{display:flex;gap:6px;flex:none}
+.adm-acts{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:270px}
 .adm-acts .btn{padding:7px 10px;font-size:13px}
 @media (max-width:480px){.adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.adm-row{flex-wrap:wrap}.adm-acts{width:100%}}
