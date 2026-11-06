@@ -32,8 +32,9 @@ begin
     returning * into pay;
   if not found then return null; end if;
 
-  insert into public.subscriptions as s (user_id, created_at, paid_until)
-    select u.id, u.created_at, now() + make_interval(months => pay.months) from auth.users u where u.id = pay.user_id
+  -- email в subscriptions обязателен — берём из аккаунта
+  insert into public.subscriptions as s (user_id, email, created_at, paid_until)
+    select u.id, u.email, u.created_at, now() + make_interval(months => pay.months) from auth.users u where u.id = pay.user_id
   on conflict (user_id) do update
     set paid_until = greatest(coalesce(s.paid_until, now()), now()) + make_interval(months => pay.months)
   returning paid_until into until;

@@ -18,8 +18,9 @@ begin
     raise exception 'BAD_DAYS';
   end if;
 
-  insert into public.subscriptions as s (user_id, created_at, paid_until)
-    select u.id, u.created_at, now() + make_interval(days => days) from auth.users u where u.id = target
+  -- email в subscriptions обязателен — берём из аккаунта
+  insert into public.subscriptions as s (user_id, email, created_at, paid_until)
+    select u.id, u.email, u.created_at, now() + make_interval(days => days) from auth.users u where u.id = target
   on conflict (user_id) do update
     set paid_until = greatest(coalesce(s.paid_until, now()), now()) + make_interval(days => days)
   returning paid_until into until;
