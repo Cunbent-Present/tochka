@@ -1,0 +1,57 @@
+# Сторож: каждый час проверяет, что Точка работает. Сломалось — открывает задачу «🚨 Точка не работает»
+# (GitHub присылает письмо владельцу), починилось — пишет «✅ снова работает» и закрывает её.
+# Запустить вручную: вкладка Actions → «Сторож Точки» → Run workflow.
+name: Сторож Точки
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 * * * *'   # каждый час
+
+permissions:
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Проверить сайт, базу и вход
+        id: check
+        run: |
+          problems=""
+          check() {   # check <название> <адрес> <что должно быть в ответе> [заголовки]
+            for i in 1 2 3; do   # не паникуем из-за одного сбоя — три попытки с паузой
+              body=$(curl -sS -L --max-time 25 ${4:+-H "$4"} "$2" 2>&1) && echo "$body" | grep -q "$3" && return 0
+              sleep 20
+            done
+            problems="$problems
+          - **$1** не отвечает как надо: $2"
+          }
+          check "Сайт" "https://tochka-klient.ru/" "Точка"
+          check "Код приложения" "https://tochka-klient.ru/app.js" "PLAN"
+          check "База салонов" "https://tochka-klient.ru/data/index.json" "regions"
+          check "Вход по почте (Supabase)" "https://aficnrxwryphxdgjmyfx.supabase.co/auth/v1/health" "GoTrue" "apikey:sb_publishable_jxAB9uHvaD7-Tp_qkdgGiQ_tQswTA_2"
+          if [ -n "$problems" ]; then
+            { echo "problems<<EOF"; echo "$problems"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+            echo "Нашёл проблемы:$problems"
+          else
+            echo "Всё работает"
+          fi
+
+      - name: Сообщить на почту
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PROBLEMS: ${{ steps.check.outputs.problems }}
+        run: |
+          open=$(gh issue list --state open --label site-down --json number --jq '.[0].number' || true)
+          if [ -n "$PROBLEMS" ] && [ -z "$open" ]; then
+            gh label create site-down --color D73A4A --description "Сторож: Точка не работает" 2>/dev/null || true
+            printf '@%s Сторож заметил, что Точка работает не полностью (%s UTC):\n%s\n\nЧто делать: открыть https://tochka-klient.ru и проверить самому. Если не открывается вход по почте — проверить SMTP в Supabase (пароль приложения Яндекса). Как починится — сторож сам закроет эту задачу.\n' \
+              "${{ github.repository_owner }}" "$(date -u '+%d.%m %H:%M')" "$PROBLEMS" > body.txt
+            gh issue create --title "🚨 Точка не работает" --body-file body.txt --label site-down
+          elif [ -z "$PROBLEMS" ] && [ -n "$open" ]; then
+            gh issue comment "$open" --body "✅ Точка снова работает ($(date -u '+%d.%m %H:%M') UTC)."
+            gh issue close "$open"
+          fi
