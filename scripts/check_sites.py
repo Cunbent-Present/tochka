@@ -201,6 +201,33 @@ def vk_sites(screen_names):
     return out
 
 
+def vk_search_candidates(name, town):
+    """Возможные публичные сообщества по названию и городу; это подсказки, не подтверждённые совпадения."""
+    if not name or not name.strip():
+        return []
+    query = " ".join(x.strip() for x in (name, town) if x and x.strip())
+    if not VK_KEY or not query:
+        return []
+    q = urllib.parse.urlencode({"q": query, "type": "page", "count": 5, "access_token": VK_KEY, "v": "5.199"})
+    with urllib.request.urlopen(urllib.request.Request("https://api.vk.com/method/groups.search?" + q,
+                                                       headers={"User-Agent": UA}), timeout=30) as r:
+        data = json.load(r)
+    if "error" in data:
+        err = data["error"]
+        raise RuntimeError(f"groups.search: {err.get('error_msg', 'ошибка API')} (код {err.get('error_code', '?')})")
+    response = data.get("response") or {}
+    items = response.get("items") or response.get("groups") or []
+    out = []
+    for g in items[:5]:
+        gid = g.get("id")
+        screen = (g.get("screen_name") or "").strip()
+        url = "https://vk.com/" + screen if screen else (f"https://vk.com/club{gid}" if gid else "")
+        title = (g.get("name") or "").strip()
+        if url and title:
+            out.append({"name": title[:120], "url": url})
+    return out
+
+
 def vk_screen_name(link):
     m = re.search(r"(?:vk\.com|vk\.ru|vkontakte\.ru)/([A-Za-z0-9_.]+)", link or "") or re.fullmatch(r"@?([A-Za-z0-9_.]+)", link or "")
     return m.group(1).lower() if m else ""
@@ -271,6 +298,7 @@ def main():
         rows = json.load(open(os.path.join(DATA, fname), encoding="utf-8"))
         region_town = stem(regions.get(slug, ""))
         links = checks.setdefault("_links", {})   # {id: ["ok" | "dead", дата]} — открывается ли указанный сайт или Taplink
+        vk_candidates = checks.setdefault("_vk_candidates", {})  # {id: {d, items}} — возможные сообщества, не подтверждённые совпадения
         todo, link_todo = [], []
         for pid, _lat, _lon, t in rows:
             site = re.split(r"\s*;\s*", next((t[k] for k in SITE_TAGS if t.get(k)), ""))[0]   # несколько через «;» — первый
@@ -311,6 +339,28 @@ def main():
                     k = kind_of(first)
                     if k in ("own", "rec"):
                         by_vk[pid] = [k, first if re.match(r"^https?://", first) else "https://" + first, today, "v"]
+
+        # 1б) Поиск возможных сообществ по названию и городу. Кандидаты не считаются подтверждёнными
+        # и не меняют результат проверки сайта — пользователь сам сверяет страницу с заведением.
+        if VK_KEY:
+            searched = found_candidates = 0
+            for pid, name, _phone, town in todo:
+                if pid in vk:
+                    continue
+                old_candidate = vk_candidates.get(pid) or {}
+                if old_candidate.get("d", "") > stale:
+                    continue
+                try:
+                    candidates = vk_search_candidates(name, town)
+                except Exception as e:
+                    print(f"  ВКонтакте: {e}; поиск кандидатов остановлен до следующего запуска", file=sys.stderr, flush=True)
+                    break
+                vk_candidates[pid] = {"d": today, "items": candidates}
+                searched += 1
+                found_candidates += bool(candidates)
+                time.sleep(0.4)
+            if searched:
+                print(f"  поиск ВК: {searched} заведений, кандидаты для {found_candidates}", flush=True)
 
         # 2) домен по названию — параллельно, у каждого сайта свой сервер
         rest = [x for x in todo if x[0] not in by_vk or by_vk[x[0]][0] != "own"]

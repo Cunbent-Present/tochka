@@ -196,8 +196,12 @@ function applyChecks(m) {
     p.siteDead = st === 'dead' ? d : '';
     leadCache.delete(p);
   }
+  for (const [id, value] of Object.entries(m._vk_candidates || {})) {
+    const p = places.get(id); if (!p) continue;
+    p.vkCandidates = Array.isArray(value && value.items) ? value.items : [];
+  }
   for (const [id, v] of Object.entries(m)) {
-    if (id === '_links') continue;
+    if (id === '_links' || id === '_vk_candidates') continue;
     const [s, url, d, how] = v;
     const p = places.get(id); if (!p) continue;
     p.chk = { s, d, how };
@@ -1237,6 +1241,10 @@ function handle(v, base) {
   if (/^(www\.|m\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(s)) return 'https://' + s;   // домен без https://
   return base + s.replace(/^@/, '');
 }
+function socialSearchUrl(platform, p) {
+  const query = [p.name, p.city, `site:${platform}`].filter(Boolean).join(' ');
+  return 'https://yandex.ru/search/?text=' + encodeURIComponent(query);
+}
 function contactText(p) {
   return [
     `${p.name} (${CATS[p.cat].name})`,
@@ -1278,6 +1286,7 @@ function select(id, fly) {
       ${soc ? row('Соцсети', soc) : ''}`
     : row('Контакты', has.length ? `<span class="lockv"><span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>
       <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
+  const vkCandidates = Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="cico">${catIcon(p.cat)}</span>${esc(c.name)}</span>
@@ -1287,6 +1296,7 @@ function select(id, fly) {
     <div class="rows">
       ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${contacts}
+      ${vkCandidates}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
       ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>${checkNote(p)}`)}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
@@ -1295,6 +1305,8 @@ function select(id, fly) {
     <div class="acts">
       <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
       <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
+      ${!p.vk ? `<a class="btn" href="${esc(socialSearchUrl('vk.com', p))}" target="_blank" rel="noopener">Найти ВК</a>` : ''}
+      ${!p.inst ? `<a class="btn" href="${esc(socialSearchUrl('instagram.com', p))}" target="_blank" rel="noopener" title="Для просмотра Instagram в России может понадобиться VPN">Найти Instagram</a>` : ''}
       ${pro && !p.locked ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
     </div>
