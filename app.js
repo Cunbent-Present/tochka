@@ -1305,8 +1305,7 @@ function select(id, fly) {
     <div class="acts">
       <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
       <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
-      ${!p.vk ? `<a class="btn" href="${esc(socialSearchUrl('vk.com', p))}" target="_blank" rel="noopener">Найти ВК</a>` : ''}
-      ${!p.inst ? `<a class="btn" href="${esc(socialSearchUrl('instagram.com', p))}" target="_blank" rel="noopener" title="Для просмотра Instagram в России может понадобиться VPN">Найти Instagram</a>` : ''}
+      ${p.vk || p.inst ? `${!p.vk ? `<a class="btn" href="${esc(socialSearchUrl('vk.com', p))}" target="_blank" rel="noopener">Найти ВК</a>` : ''}${!p.inst ? `<a class="btn" href="${esc(socialSearchUrl('instagram.com', p))}" target="_blank" rel="noopener" title="Для просмотра Instagram в России может понадобиться VPN">Найти Instagram</a>` : ''}` : ''}
       ${pro && !p.locked ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
     </div>
