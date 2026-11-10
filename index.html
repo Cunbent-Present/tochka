@@ -98,6 +98,7 @@
       <div class="head-acts"><button class="btn" type="button" id="export">Экспорт в Excel</button><button class="btn" type="button" id="copyall">Скопировать все</button></div>
     </div>
     <div class="v-scroll crm">
+      <div class="success-summary" id="successSummary" hidden></div>
       <div class="kpis" id="kpis"></div>
       <section class="sec sec-todo"><h3><span>Кому написать сегодня</span><span id="todoN"></span></h3><div class="todo" id="todo"></div></section>
       <section class="sec sec-funnel"><h3><span>Воронка</span><span id="conv"></span></h3><div class="funnel" id="funnel"></div>
@@ -301,6 +302,20 @@
       <button class="linkbtn" type="button" id="gOut">Выйти из аккаунта</button>
     </div>
   </div>
+</div>
+
+<div class="pro-tour" id="proTour" hidden>
+  <section class="pro-tour-card" role="dialog" aria-modal="true" aria-labelledby="proTourTitle">
+    <button class="x pro-tour-x" type="button" id="proTourX" aria-label="Закрыть">×</button>
+    <span class="pro-tour-step" id="proTourStep">Шаг 1 из 3</span>
+    <h2 id="proTourTitle">Найди салоны без сайта</h2>
+    <p id="proTourText">Включи фильтр «Без сайта», чтобы оставить на карте подходящих клиентов.</p>
+    <div class="pro-tour-actions">
+      <button class="linkbtn" type="button" id="proTourSkip">Пропустить</button>
+      <button class="btn" type="button" id="proTourBack" hidden>Назад</button>
+      <button class="btn pri" type="button" id="proTourNext">Дальше</button>
+    </div>
+  </section>
 </div>
 
 <div class="toast" id="toast"></div>

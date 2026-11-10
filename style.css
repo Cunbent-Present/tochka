@@ -339,6 +339,16 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background
 .toast{position:fixed;left:50%;bottom:calc(var(--tabh) + 16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:1300;
   opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:var(--deep);max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1}
+.success-summary{margin:0 16px 10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));border-radius:13px;background:color-mix(in srgb,var(--accent) 8%,var(--panel));font-size:14px;font-weight:600;line-height:1.45}
+.pro-tour{position:fixed;inset:0;z-index:1450;display:grid;place-items:center;padding:18px;background:color-mix(in srgb,#0b1020 55%,transparent);backdrop-filter:blur(5px)}
+.pro-tour[hidden]{display:none}
+.pro-tour-card{position:relative;width:min(100%,420px);padding:24px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:22px;box-shadow:var(--deep);display:grid;gap:12px;animation:rise .3s ease-out}
+.pro-tour-x{position:absolute;right:12px;top:12px}
+.pro-tour-step{font-size:12px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.pro-tour-card h2{margin:0;font:500 23px/1.2 var(--f-display)}
+.pro-tour-card p{margin:0;color:var(--muted);font-size:15px;line-height:1.5}
+.pro-tour-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px}
+.pro-tour-actions #proTourSkip{margin-right:auto}
 
 /* ---------- ПК ---------- */
 @media (min-width:761px){

@@ -148,6 +148,26 @@ const dbReady = fetch('data/index.json', { cache: 'no-cache' })
   })
   .catch(() => {});
 function dbCityAt(lat, lon) { return dbIndex.find(c => c.count && lat >= c.s && lat <= c.n && lon >= c.w && lon <= c.e); }
+const NEW_LEADS_KEY = 'tochka-new-leads-v1';
+function notifyNewLeads(c, rows) {
+  if (!store.get('tochka-remind', true) || !c.updated) return;
+  const center = map.getCenter();
+  const area = `${c.slug}:${Math.round(center.lat * 10)}:${Math.round(center.lng * 10)}`;
+  const count = rows.reduce((n, [id, lat, lon, tags]) => {
+    if (Math.abs(lat - center.lat) > .08 || Math.abs(lon - center.lng) > .13) return n;
+    const site = (tags.website || tags['contact:website'] || tags.url || '').split(/\s*;\s*/)[0];
+    return n + (!site || siteKind({ site }) !== 'own' ? 1 : 0);
+  }, 0);
+  const all = store.get(NEW_LEADS_KEY, {}), prev = all[area];
+  if (prev && prev.version !== c.updated && count > prev.count) {
+    const city = dbCityAt(center.lat, center.lng);
+    toast(`В районе ${city ? city.name : c.name} стало больше заведений без сайта: +${count - prev.count}`, 4200);
+  }
+  all[area] = { version: c.updated, count };
+  const keys = Object.keys(all);
+  if (keys.length > 40) for (const k of keys.slice(0, keys.length - 40)) delete all[k];
+  store.set(NEW_LEADS_KEY, all);
+}
 // регионы, которые нужны для видимой области (не дальше ~1° от центра)
 function dbRegionsNear(c, b) {
   const S = Math.max(b.getSouth(), c.lat - 1), N = Math.min(b.getNorth(), c.lat + 1);
@@ -168,6 +188,7 @@ function loadDb(c) {
   const pr = fetch(`data/${c.slug}.json?v=${encodeURIComponent(c.updated || '')}`)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(rows => {
+      notifyNewLeads(c, rows);
       for (const [id, lat, lon, tags] of rows) {
         const p = parseEl({ type: OSM_TYPES[id[0]] || 'node', id: id.slice(1), lat, lon, tags });
         if (p && !places.has(p.id)) { p.db = true; places.set(p.id, p); }
@@ -803,6 +824,38 @@ function hideGate() { $('#gate').hidden = true; gateStep = ''; document.body.cla
 $('#gX').onclick = hideGate;
 $('#gate').addEventListener('click', e => { if (e.target.id === 'gate') hideGate(); });
 // окно входа/оплаты само не открывается — только из needPro(); здесь лишь закрываем его или ведём дальше
+const PRO_TOUR_KEY = 'tochka-pro-tour-v1';
+const PRO_TOUR = [
+  ['Найди салоны без сайта', 'Включи фильтр «Без сайта», чтобы оставить на карте подходящих клиентов.'],
+  ['Выбери клиента', 'Открой салон с высокой оценкой потенциала — Точка подскажет, кому особенно нужен сайт.'],
+  ['Напиши ему', 'В карточке нажми «Написать»: выбери шаблон, скопируй сообщение и свяжись с клиентом.']
+];
+let proTourStep = 0, proTourOpen = false;
+function renderProTour() {
+  const [title, text] = PRO_TOUR[proTourStep];
+  $('#proTourStep').textContent = `Шаг ${proTourStep + 1} из ${PRO_TOUR.length}`;
+  $('#proTourTitle').textContent = title;
+  $('#proTourText').textContent = text;
+  $('#proTourBack').hidden = proTourStep === 0;
+  $('#proTourNext').textContent = proTourStep === PRO_TOUR.length - 1 ? 'Начать' : 'Дальше';
+}
+function closeProTour() {
+  $('#proTour').hidden = true;
+  proTourOpen = false;
+  store.set(PRO_TOUR_KEY, true);
+}
+function startProTour() {
+  if (proTourOpen || store.get(PRO_TOUR_KEY, false) || !authOn() || !session || !isPro()) return;
+  proTourOpen = true; proTourStep = 0; renderProTour(); $('#proTour').hidden = false;
+}
+$('#proTourX').onclick = closeProTour;
+$('#proTourSkip').onclick = closeProTour;
+$('#proTourBack').onclick = () => { proTourStep = Math.max(0, proTourStep - 1); renderProTour(); };
+$('#proTourNext').onclick = () => {
+  if (proTourStep < PRO_TOUR.length - 1) { proTourStep++; renderProTour(); }
+  else closeProTour();
+};
+$('#proTour').addEventListener('click', e => { if (e.target.id === 'proTour') closeProTour(); });
 let wasPro = isPro();
 function applyAccess() {
   document.documentElement.classList.toggle('is-pro', authOn() && isPro());
@@ -811,6 +864,7 @@ function applyAccess() {
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
   // доступ изменился — открыть или спрятать контакты в открытой карточке
   if (wasPro !== isPro()) { wasPro = isPro(); try { if (sel) select(sel); } catch { /* карта ещё не готова */ } }
+  if (authOn() && session && isPro()) setTimeout(startProTour, 500);
 }
 $('#gPrice').textContent = `${PLAN.price} ₽ в месяц`;
 let mailTo = '', resendAt = 0;
@@ -1552,6 +1606,10 @@ function renderTodoBadge() { /* значок на вкладке обновля�
 function renderCrm() {
   const cnt = k => notes.filter(n => (n.s || 'new') === k).length;
   const contacted = notes.length - cnt('new'), answered = cnt('reply') + cnt('deal');
+  $('#successSummary').hidden = !isPro();
+  $('#successSummary').textContent = contacted
+    ? `Ты написал ${contacted} клиентам — ответили ${answered}, договорились ${cnt('deal')}.`
+    : 'Отмечай воронку клиентов — здесь появятся ответы и договорённости.';
   $('#kpis').innerHTML = [[contacted, 'написал'], [answered, 'ответили'], [cnt('deal'), 'договорились']]
     .map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
   const max = Math.max(1, ...STATUSES.map(([k]) => cnt(k)));
@@ -1621,7 +1679,7 @@ $('#pAdm').onclick = () => openAdmin();
 $('#pRev').onclick = () => openReviews();
 document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b && !needPro()) openPro(); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); closeReviews(); hideGate(); }
+  if (e.key === 'Escape') { closeProTour(); closeSheet(); closeMsg(); closeAdd(); stopAdd(); closePro(); closeAdmin(); closeReviews(); hideGate(); }
   // «/» — быстро перейти к поиску (как на многих сайтах)
   if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); go('v-map'); setTimeout(() => $('#q').focus(), 30); }
 });
