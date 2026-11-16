@@ -36,8 +36,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 ENDPOINTS = [
+    "https://overpass.private.coffee/api/interpreter",
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
 ]
 KEEP = {
     "name", "shop", "amenity", "leisure", "male", "female", "hairdresser", "beauty",
@@ -92,8 +92,9 @@ SECRET = {"phone": "phone", "contact:phone": "phone", "email": "email", "contact
           "contact:telegram": "tg", "contact:vk": "vk", "contact:instagram": "inst"}
 HIDDEN = "*"           # так в открытом файле помечен контакт, который лежит на сервере
 TILE = 2.0             # если регион не отдаётся целиком — качаем кусками по 2°×2° (при ошибке — по 1°)
-FILTER = ('nwr["shop"~"^(hairdresser|beauty|massage|tattoo)$"]{f};'
-          'nwr["amenity"~"^(spa|massage)$"]{f};'
+DATA_VERSION = 2
+FILTER = ('nwr["shop"~"^(hairdresser|beauty|massage|tattoo|pet|florist|bakery)$"]{f};'
+          'nwr["amenity"~"^(spa|massage|cafe|restaurant|veterinary)$"]{f};'
           'nwr["leisure"="spa"]{f};')
 
 
@@ -202,7 +203,7 @@ def build_cities(idx, started):
     today = datetime.now(timezone.utc)
     for slug, name, lat, lon in CITIES:
         old = have.get(slug)
-        fresh = old and old.get("count") and os.path.exists(os.path.join(OUT, f"{slug}.json")) and \
+        fresh = old and old.get("version") == DATA_VERSION and old.get("count") and os.path.exists(os.path.join(OUT, f"{slug}.json")) and \
             (today - datetime.fromisoformat(old["updated"][:10]).replace(tzinfo=timezone.utc)).days < CITY_DAYS
         if fresh:
             continue
@@ -220,7 +221,7 @@ def build_cities(idx, started):
         with open(os.path.join(OUT, f"{slug}.json"), "w", encoding="utf-8") as f:
             json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
         have[slug] = {"slug": slug, "name": name, "lat": lat, "lon": lon, "s": s, "w": w, "n": n, "e": e,
-                      "count": len(rows), "updated": today.strftime("%Y-%m-%d")}
+                      "count": len(rows), "updated": today.strftime("%Y-%m-%d"), "version": DATA_VERSION}
         idx["cities"] = [have[c[0]] for c in CITIES if c[0] in have] + \
             [c for k, c in have.items() if k not in {x[0] for x in CITIES}]
         save_index(idx)
@@ -264,10 +265,10 @@ def upload_contacts(items):
 
 
 def protect(rows):
-    """Убирает контакты из строк файла и кладёт их на сервер. Если сервер недоступен — строки как были."""
+    """Убирает контакты из публичного файла только после записи на сервер."""
     global upload_broken
     if not SUPABASE_KEY or upload_broken:
-        return rows
+        raise RuntimeError("Нет доступа к хранилищу контактов; публичный файл не записан")
     items, out = [], []
     for r in rows:
         t = r[3]
@@ -286,9 +287,9 @@ def protect(rows):
         upload_contacts(items)
     except Exception as e:
         upload_broken = str(e)[:200]
-        print(f"  контакты не загрузились на сервер ({upload_broken}) — оставляю их в файлах до следующего запуска",
+        print(f"  контакты не загрузились на сервер ({upload_broken}) — публичный файл не записан",
               file=sys.stderr, flush=True)
-        return rows
+        raise RuntimeError("Контакты не защищены; публичный файл не записан") from e
     return out
 
 
@@ -375,7 +376,9 @@ def main():
         d = done.get(r["slug"])
         if not d:
             return (0, pri.get(r["iso"], 99), "")
-        return (1 if d.get("partial") else 2, pri.get(r["iso"], 99) if d.get("partial") else 0, d.get("updated", ""))
+        return (1 if d.get("partial") or d.get("version") != DATA_VERSION else 2,
+                pri.get(r["iso"], 99) if d.get("partial") or d.get("version") != DATA_VERSION else 0,
+                d.get("updated", ""))
     regions.sort(key=order)
 
     ok = fail = 0
@@ -383,7 +386,7 @@ def main():
     fresh_after = (datetime.now(timezone.utc) - timedelta(days=REGION_DAYS)).strftime("%Y-%m-%dT%H:%M")
     for reg in regions:
         d = done.get(reg["slug"])
-        if d and not d.get("partial") and d.get("updated", "") > fresh_after:
+        if d and d.get("version") == DATA_VERSION and not d.get("partial") and d.get("updated", "") > fresh_after:
             print("Остальные регионы свежие — обновятся, когда им будет больше недели.", flush=True)
             break   # список отсортирован от старых к свежим — дальше только свежие
         if (time.time() - started) / 60 > BUDGET_MIN:
@@ -408,7 +411,7 @@ def main():
             json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
         done[reg["slug"]] = {
             "slug": reg["slug"], "name": reg["name"], "count": len(rows), "cells": cells_of(rows),
-            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
+            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"), "version": DATA_VERSION,
         }
         if not whole:
             done[reg["slug"]]["partial"] = True

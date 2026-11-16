@@ -6,7 +6,7 @@ const categories = {
   pet: 'shop=pet', flowers: 'shop=florist', cafe: 'amenity=cafe',
   bakery: 'shop=bakery', restaurant: 'amenity=restaurant', vet: 'amenity=veterinary'
 };
-const endpoints = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const endpoints = ['https://overpass.private.coffee/api/interpreter', 'https://overpass-api.de/api/interpreter'];
 const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Content-Type': 'application/json' };
 const reply = (value, status = 200) => new Response(JSON.stringify(value), { status, headers });
 

@@ -71,21 +71,5 @@ addEventListener('message',e=>{if(e.source===workspaceFrame.contentWindow&&e.dat
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!workspaceShowcase.hidden)workspaceCloseShowcase()});
 // Keep the main qualification filter visible before the scrollable category choices.
 const workspaceNoSite=$('#chips .nosite');if(workspaceNoSite)$('#chips').prepend(workspaceNoSite);
-// The salon database does not cover these additional categories. Fetch them from
-// public OSM when selected, even in areas already covered by the salon database.
-const workspaceExtraTags={pet:'["shop"="pet"]',flowers:'["shop"="florist"]',cafe:'["amenity"="cafe"]',bakery:'["shop"="bakery"]',restaurant:'["amenity"="restaurant"]',vet:'["amenity"="veterinary"]'};
-const workspaceExtraAreas=new Set();let workspaceExtraTimer,workspaceExtraBusy=false;
-async function workspaceLoadExtra(){
- const chosen=cat,tag=workspaceExtraTags[chosen];if(!tag||workspaceExtraBusy||map.getZoom()<MIN_LOAD_ZOOM)return;
- const c=map.getCenter(),b=map.getBounds();const bounds=[Math.max(b.getSouth(),c.lat-.08),Math.max(b.getWest(),c.lng-.12),Math.min(b.getNorth(),c.lat+.08),Math.min(b.getEast(),c.lng+.12)];
- const key=chosen+':'+bounds+':'+(session&&isPro()?'pro':'public');if(workspaceExtraAreas.has(key))return;workspaceExtraBusy=true;
- try{setStatus('Загружаю заведения: '+CATS[chosen].name.toLowerCase()+'…');
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),31000);let data;
- try{const access=session&&isPro()?await token():null;const r=await fetch(AUTH.url+'/functions/v1/extra-places',{method:'POST',signal:controller.signal,headers:{apikey:AUTH.anon,'Content-Type':'application/json',...(access?{Authorization:'Bearer '+access}:{})},body:JSON.stringify({category:chosen,bounds})});if(!r.ok)throw new Error('HTTP '+r.status);data=await r.json()}finally{clearTimeout(timeout)}
- for(const el of data.elements||[]){const p=parseEl(el);if(p)places.set(p.id,{...places.get(p.id),...p,extra:true})}
- workspaceExtraAreas.add(key);if(workspaceExtraAreas.size>24)workspaceExtraAreas.delete(workspaceExtraAreas.values().next().value);applyFilter();setStatus('');
- }catch{if(cat===chosen)setStatus('Не удалось загрузить эту категорию. Попробуй выбрать её ещё раз.');}
- finally{workspaceExtraBusy=false;if(cat!==chosen&&workspaceExtraTags[cat])workspaceLoadExtra()}
-}
-$('#chips').addEventListener('click',()=>workspaceLoadExtra());map.on('moveend',()=>{clearTimeout(workspaceExtraTimer);workspaceExtraTimer=setTimeout(workspaceLoadExtra,500)});
+// Дополнительные категории приходят из той же защищённой базы, что и салоны.
 workspaceSync();
