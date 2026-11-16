@@ -4,6 +4,12 @@
    Заведения: OpenStreetMap (Overpass API), лицензия ODbL. Поиск городов: Nominatim. */
 
 const CATS = {
+ bakery:{name:'Пекарня',color:'#B77942',syn:['пекарня','булочная','выпечка','bakery']},
+ restaurant:{name:'Ресторан',color:'#B56658',syn:['ресторан','restaurant']},
+ vet:{name:'Ветклиника',color:'#398789',syn:['ветеринар','ветклиника','veterinary']},
+  pet: { name: 'Зоомагазин', color: '#5C7C68', syn: ['зоомагазин', 'зоотовары', 'pet'] },
+  flowers: { name: 'Цветы', color: '#9A648B', syn: ['цветы', 'букет', 'florist'] },
+  cafe: { name: 'Кофейня', color: '#A77751', syn: ['кофе', 'кофейня', 'cafe', 'coffee'] },
   barber: { name: 'Барбершоп',       color: '#2F6496', syn: ['барбер', 'барбершоп', 'мужская стрижка', 'борода', 'barber'] },
   beauty: { name: 'Салон красоты',   color: '#B0457A', syn: ['салон', 'салон красоты', 'парикмахер', 'стрижка', 'окрашивание', 'укладка', 'beauty'] },
   nails:  { name: 'Маникюр',         color: '#C2702E', syn: ['маникюр', 'ногти', 'nail', 'педикюр'] },
@@ -22,7 +28,7 @@ const CITIES = [
 ];
 const MIN_LOAD_ZOOM = 12.5;
 const CELL = 0.02;
-const CACHE_KEY = 'tochka-places-v1';
+const CACHE_KEY = 'tochka-places-v3-protected';
 const CACHE_DAYS = 7;
 const CACHE_MAX = 6000;            // столько заведений максимум держим в памяти браузера
 const NOTES_KEY = 'tochka-notes';
@@ -33,8 +39,8 @@ const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
 const THEME_KEY = 'tochka-theme';
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
 // по умолчанию светлая тема (как у карт); «Авто» — только если человек сам её выбрал в Профиле
-let themeMode = (() => { try { const t = localStorage.getItem(THEME_KEY); return t === 'dark' || t === 'auto' ? t : 'light'; } catch { return 'light'; } })();
-const computeDark = () => themeMode === 'dark' || (themeMode === 'auto' && sysDark.matches);
+let themeMode = (() => { try { const t = localStorage.getItem(THEME_KEY); return t === 'dark' || t === 'navy' || t === 'auto' ? t : 'light'; } catch { return 'light'; } })();
+const computeDark = () => themeMode === 'dark' || themeMode === 'navy' || (themeMode === 'auto' && sysDark.matches);
 let DARK = computeDark();
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -55,6 +61,12 @@ function distM(a, b) { // расстояние в метрах между [lat,l
 /* ---------- данные OSM ---------- */
 function categorize(t) {
   const name = norm(t.name);
+  if(t.shop==='bakery')return 'bakery';
+  if(t.amenity==='restaurant')return 'restaurant';
+  if(t.amenity==='veterinary')return 'vet';
+  if (t.shop === 'pet') return 'pet';
+  if (t.shop === 'florist') return 'flowers';
+  if (t.amenity === 'cafe') return 'cafe';
   if (t.shop === 'tattoo') return 'tattoo';
   if (t.shop === 'massage' || t.amenity === 'spa' || t.leisure === 'spa' || t.amenity === 'massage') return 'spa';
   if (t.shop === 'hairdresser') {
@@ -108,18 +120,18 @@ let saveTimer;
 function saveCache() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    let list = [...places.values()].filter(p => !p.db && !p.mine);
+    let list = [...places.values()].filter(p => !p.db && !p.mine && !p.extra);
     let cells = [...loadedCells];
     if (list.length > CACHE_MAX) { list = list.slice(-CACHE_MAX); cells = []; }
     if (!store.set(CACHE_KEY, { t: Date.now(), cells, places: list })) store.set(CACHE_KEY, null);
   }, 800);
 }
 
-async function overpass(q) {
+async function overpass(q, signal) {
   let lastErr;
   for (const url of ENDPOINTS) {
     try {
-      const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      const r = await fetch(url, { signal, method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
     } catch (e) { lastErr = e; }
@@ -307,12 +319,18 @@ map.on('error', e => {
 
 // Иконки категорий: контуры 24×24 — и для меток на карте (canvas, Path2D), и для фильтров и карточек (SVG)
 const CAT_ICONS = {
-  barber: 'M10 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M8.6 14.6L17 4M15.4 14.6L7 4',              // ножницы
-  beauty: 'M4 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0M14 6h5.5v4H14M8.5 13l-1.2 7h3l1.2-6.4',                                       // фен
-  nails:  'M10 3h4v5h-4zM7 10.5A2.5 2.5 0 0 1 9.5 8h5a2.5 2.5 0 0 1 2.5 2.5V18.5A2.5 2.5 0 0 1 14.5 21h-5A2.5 2.5 0 0 1 7 18.5z', // лак
-  brows:  'M3 14c3.2-5 14.8-5 18 0c-3.2 5-14.8 5-18 0zM14.5 14a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M6.5 8.8L5.6 6.6M12 7.5V5M17.5 8.8l.9-2.2', // глаз с ресницами
-  tattoo: 'M12 3c3 5 6 8 6 11.5a6 6 0 0 1-12 0C6 11 9 8 12 3z',                                                              // капля туши
-  spa:    'M12 20c-5 0-8-3.6-8-8.6c4 0 7 2 8 5c1-3 4-5 8-5c0 5-3 8.6-8 8.6zM12 15.5c-2-2.2-2-5.5 0-8c2 2.5 2 5.8 0 8z'      // лотос
+  "barber": "M9 17a3 3 0 1 1-6 0 3 3 0 1 1 6 0ZM21 17a3 3 0 1 1-6 0 3 3 0 1 1 6 0ZM8 15 18 3M16 15 6 3",
+  "beauty": "M4 8a5 5 0 1 0 10 0 5 5 0 1 0-10 0ZM14 5l7 1v4l-7 1M8 13l-1 8h4l1-8M5 8h3",
+  "nails": "M9 3h6v5H9zM7 11a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2zM10 12v5M9 5h6",
+  "brows": "M3 13c4-6 14-6 18 0-4 6-14 6-18 0ZM15 13a3 3 0 1 1-6 0 3 3 0 1 1 6 0ZM6 8 4 5M12 6V3M18 8l2-3",
+  "tattoo": "m12 2 2.8 6.2L22 9l-5.3 4.8 1.5 7.2-6.2-3.6L5.8 21l1.5-7.2L2 9l7.2-.8zM12 7v6l4 3",
+  "spa": "M12 21C5 20 2 16 3 10c5 0 8 4 9 9 1-5 4-9 9-9 1 6-2 10-9 11ZM12 15c-4-4-3-8 0-12 3 4 4 8 0 12Z",
+  "pet": "M9 13c-2 1-5 3-5 5 0 3 3 3 5 2 2-1 4-1 6 0 2 1 5 1 5-2 0-2-3-4-5-5-2-1-4-1-6 0ZM7 8a2 3 0 1 1-4 0 2 3 0 1 1 4 0ZM12 5a2 3 0 1 1-4 0 2 3 0 1 1 4 0ZM17 5a2 3 0 1 1-4 0 2 3 0 1 1 4 0ZM22 8a2 3 0 1 1-4 0 2 3 0 1 1 4 0Z",
+  "flowers": "M12 13c-5 0-7-4-7-8l4 2 3-5 3 5 4-2c0 4-2 8-7 8ZM12 13v9M12 19c-4 0-6-2-7-5 4 0 6 2 7 5ZM12 21c4-1 6-3 7-6-4 0-6 2-7 6Z",
+  "cafe": "M4 8h12v7a6 6 0 0 1-12 0zM16 9h2a3 3 0 0 1 0 6h-2M3 22h15M7 5c-2-1 2-2 0-3M12 5c-2-1 2-2 0-3",
+  "bakery": "M4 10c-4-5 5-9 8-6 3-3 12 1 8 6l-2 2v8H6v-8zM9 9l1 3M14 8l1 3M6 17h12",
+  "restaurant": "M5 3v6a3 3 0 0 0 6 0V3M8 3v18M16 12h4V3c-4 2-4 6-4 9ZM20 12v9",
+  "vet": "M10 3h4v6h6v4h-6v7h-4v-7H4V9h6z"
 };
 const catIcon = (k, cls = 'ci') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${CAT_ICONS[k] || CAT_ICONS.beauty}"/></svg>`;
 
@@ -421,6 +439,7 @@ function setupLayers() {
 }
 map.on('style.load', setupLayers);
 function setTheme(mode) {
+  document.documentElement.dataset.palette=mode==='navy'?'navy':'';
   themeMode = mode;
   try { localStorage.setItem(THEME_KEY, mode); } catch {}
   if (mode === 'auto') document.documentElement.removeAttribute('data-theme');
@@ -578,7 +597,7 @@ function lead(p) {
   let s = 0;
   if (kind === 'none' && p.site && p.siteDead) { s += 60; why.push('указанный сайт не открывается'); }
   else if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
-  else if (kind === 'none') { s += 55; why.push('нет сайта'); }
+  else if (kind === 'none') { s += 55; why.push('сайт не указан в источнике'); }
   else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
   else why.push('уже есть сайт');
   const social = !!(p.tg || p.vk || p.inst || p.email || kind === 'social');
@@ -826,7 +845,7 @@ $('#gate').addEventListener('click', e => { if (e.target.id === 'gate') hideGate
 // окно входа/оплаты само не открывается — только из needPro(); здесь лишь закрываем его или ведём дальше
 const PRO_TOUR_KEY = 'tochka-pro-tour-v1';
 const PRO_TOUR = [
-  ['Найди салоны без сайта', 'Включи фильтр «Без сайта», чтобы оставить на карте подходящих клиентов.'],
+  ['Найди подходящие заведения', 'Включи фильтр «Предположительно без сайта», чтобы оставить на карте подходящих клиентов.'],
   ['Выбери клиента', 'Открой салон с высокой оценкой потенциала — Точка подскажет, кому особенно нужен сайт.'],
   ['Напиши ему', 'В карточке нажми «Написать»: выбери шаблон, скопируй сообщение и свяжись с клиентом.']
 ];
@@ -1138,7 +1157,7 @@ const pickCat = k => b => { cat = k; catChips.forEach(x => x.setAttribute('aria-
 catChips.push(chip('Все', null, true, pickCat('all')));
 for (const [k, v] of Object.entries(CATS)) catChips.push(chip(v.name, k, false, pickCat(k)));
 const sep = document.createElement('span'); sep.className = 'chip-sep'; chips.appendChild(sep);
-chip('Без сайта', null, false, b => { noSite = !noSite; b.setAttribute('aria-pressed', noSite); applyFilter(); }, 'nosite');
+chip('Предположительно без сайта', null, false, b => { noSite = !noSite; b.setAttribute('aria-pressed', noSite); applyFilter(); }, 'nosite');
 chip('★ Избранное', null, false, b => {
   favOnly = !favOnly; b.setAttribute('aria-pressed', favOnly);
   if (favOnly && !Object.keys(favs).length) toast('Пока пусто: нажмите ☆ в карточке заведения');
@@ -1171,7 +1190,7 @@ function itemHtml({ p, d }) {
     <span class="ic" style="--c:${CATS[p.cat].color}">${catIcon(p.cat)}</span>
     <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
     <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
-    <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Нет сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
+    <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Предположительно без сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
   </button>`;
 }
 function bindItems(root) {
@@ -1352,7 +1371,7 @@ function select(id, fly) {
       ${contacts}
       ${vkCandidates}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Нет</span><small>можно предложить сделать сайт</small>${checkNote(p)}`)}
+      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
       ${p.operator ? row('Компания', esc(p.operator)) : ''}
     </div>

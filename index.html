@@ -2,10 +2,10 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com 'sha256-XG79nE6P8BAwn0ZvSW7GP7UtBpezBvvvibwacOsqQ/k='; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-91diwuKUexrstqG+97TCswLApRB1doHmGtTCgW7WVsA=' 'sha256-TvcqnQ6kBhd6ujXaDhJXNnJyvjOOV48hqJcECv3onOQ=' https://unpkg.com 'sha256-XG79nE6P8BAwn0ZvSW7GP7UtBpezBvvvibwacOsqQ/k='; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Точка — найти клиентов на сайты: салоны и барбершопы без сайта</title>
+<title>Точка — поиск клиентов</title>
 <meta name="description" content="Карта салонов красоты, барбершопов, маникюра и СПА по всей России. Видно, у кого нет сайта, — находите клиентов на создание сайтов. Шаблоны сообщений и блокнот клиентов.">
 <link rel="canonical" href="https://tochka-klient.ru/">
 <meta property="og:type" content="website">
@@ -26,14 +26,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="workspace.css">
 </head>
 <body>
+<svg width="0" height="0" class="diamond-defs" aria-hidden="true"><defs><linearGradient id="diamond-body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f1f8ff"/><stop offset=".45" stop-color="#a6bfff"/><stop offset="1" stop-color="#7750d2"/></linearGradient><linearGradient id="diamond-side" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#a69aff"/><stop offset="1" stop-color="#443e89"/></linearGradient><symbol id="tochka-diamond" viewBox="0 0 120 110"><path d="M15 39 37 10 84 10 107 39 62 99z" fill="#463a8c" transform="translate(1 5)"/><path d="M15 39 37 10H84L107 39 61 96z" fill="url(#diamond-body)" stroke="#e4e7ff" stroke-width="1" stroke-linejoin="round"/><path d="m15 39 22-29 10 29z" fill="#a9bfff"/><path d="m37 10 24 3-14 26z" fill="#edf6ff"/><path d="m61 13 23-3-10 29H47z" fill="#d8eaff"/><path d="m84 10 23 29H74z" fill="#a6a7f1"/><path d="m15 39 32 0 14 57z" fill="#859df0"/><path d="m47 39 27 0-13 57z" fill="#dce8ff"/><path d="m74 39 33 0-46 57z" fill="url(#diamond-side)"/><path d="M17 39h88M37 11l10 28 14 55 13-55 10-28M47 39l14-26 13 26" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.1"/><path d="m28 27 10-13h17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/></symbol></defs></svg>
 <div class="app" id="app">
+<header class="workspace-header"><div class="workspace-brand"><span class="wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div><span id="workspaceSection" class="workspace-section">Карта клиентов</span><div class="workspace-actions"><button id="workspaceTheme" class="workspace-icon" type="button" aria-label="Переключить тему">◐</button><button id="workspaceProfile" class="workspace-avatar" type="button" aria-label="Открыть личный кабинет">А</button></div></header>
 
   <!-- вкладки: снизу на телефоне, слева на ПК -->
   <nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы">
     <span class="tabpill" id="tabpill"></span>
-    <div class="rail-brand"><span class="logo" role="img" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></span><span class="pro-mark sm"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span></div>
+    <div class="rail-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span><span class="pro-mark sm"><svg class="diamond" viewBox="0 0 120 110" aria-hidden="true"><use href="#tochka-diamond"/></svg>PRO</span></div>
     <button class="tab" role="tab" aria-selected="true" data-v="v-map" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Карта</button>
     <button class="tab" role="tab" aria-selected="false" data-v="v-list" type="button">
@@ -113,30 +116,27 @@
     </div>
   </section>
 
-  <!-- ПРОФИЛЬ -->
-  <section class="view off" id="v-prof" aria-label="Профиль">
-    <div class="v-head"><h2>Профиль</h2></div>
-    <div class="v-scroll">
-      <div class="plist">
-        <button class="pi pi-pro" type="button" id="pPro"><span><b>Подписка <span class="pro-mark"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span></b><small id="pProSub"></small></span><span class="chev">›</span></button>
-        <button class="pi" type="button" id="pAcc"><span>Аккаунт<small id="pAccSub"></small></span><span class="chev">›</span></button>
-        <button class="pi pi-adm" type="button" id="pAdm" hidden><span><b>Админ-панель</b><small id="pAdmSub">Пользователи, подписки, доход</small></span><span class="chev">›</span></button>
-        <div class="pi"><span>Тема</span>
-          <div class="seg" role="group" aria-label="Тема" id="theme">
-            <button type="button" data-t="light" aria-pressed="true">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button><button type="button" data-t="auto" aria-pressed="false">Авто</button>
-          </div></div>
-        <div class="pi"><span>3D-карта<small>Наклон и объёмные дома</small></span><button class="sw" id="sw3d" type="button" role="switch" aria-checked="true" aria-label="3D-карта"></button></div>
-        <div class="pi"><span>Напоминания<small>Подсказка при запуске, когда пора написать</small></span><button class="sw" id="swRem" type="button" role="switch" aria-checked="true" aria-label="Напоминания"></button></div>
-        <button class="pi" type="button" id="pTpl"><span>Мои шаблоны и подпись<small id="pTplSub">3 шаблона</small></span><span class="chev">›</span></button>
-        <button class="pi" type="button" id="pExport"><span>Экспорт в Excel<small>Все заметки и клиенты</small></span><span class="chev">›</span></button>
-        <a class="pi pi-dl" href="download.html" id="pDl"><svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="dl-arrow"><path d="M12 3v11m0 0-4.5-4.5M12 14l4.5-4.5"/></g><path class="dl-tray" d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Скачать приложение<small>Android, Windows, iPhone</small></span><span class="chev">›</span></a>
-        <a class="pi" href="showcase.html"><span>Как выглядит Точка<small>Демо на телефоне и компьютере</small></span><span class="chev">›</span></a>
-        <button class="pi" type="button" id="pRev"><span>Отзывы<small>Почитать и оставить свой</small></span><span class="chev">›</span></button>
-        <div class="pi"><span>Мои данные<small id="pStats"></small></span></div>
-        <p class="small about">Данные о заведениях: © участники OpenStreetMap. Карта: OpenFreeMap. Блокнот, избранное и свои места хранятся только на этом устройстве.</p>
-      </div>
-    </div>
-  </section>
+<!-- ПРОФИЛЬ -->
+<section class="view off" id="v-prof" aria-label="Профиль">
+ <div class="v-scroll account-scroll"><div class="account-inner">
+  <div class="account-heading"><div><span class="eyebrow">ТВОЁ РАБОЧЕЕ ПРОСТРАНСТВО</span><h1>Личный кабинет</h1><p>Клиенты, инструменты и следующий шаг — под рукой.</p></div><button class="btn" type="button" data-open-map>← Вернуться на карту</button></div>
+  <div class="account-grid"><div class="account-main">
+   <section class="account-card identity-card"><div class="identity-top"><span class="profile-avatar" id="profileAvatar">А</span><div><h2 id="profileName">Мой профиль</h2><p class="small" id="profileAccess">Профиль на этом устройстве</p></div></div>
+    <form id="workspaceProfileForm"><div class="profile-fields"><label class="fld">Как к тебе обращаться<input id="workspaceName" type="text" maxlength="40" autocomplete="given-name" placeholder="Твоё имя" required></label><label class="fld">Город для поиска<select id="workspaceCity"></select></label></div><div class="profile-save"><span class="small">Имя и выбранный город сохраняются на этом устройстве</span><button class="btn pri" type="submit">Сохранить профиль</button></div></form>
+   </section>
+   <section class="account-card"><div class="card-heading"><h2>Мои результаты</h2><span class="small">По твоим отметкам</span></div><div class="account-metrics"><div><span class="metric-symbol">☆</span><b id="workspaceSaved">0</b><span>в избранном</span></div><div><span class="metric-symbol">↗</span><b id="workspaceSent">0</b><span>написал</span></div><div><span class="metric-symbol">↔</span><b id="workspaceReplies">0</b><span>ответили</span></div><div><span class="metric-symbol">✓</span><b id="workspaceDeals">0</b><span>договорились</span></div></div><button class="text-action" id="workspaceClients" type="button">Открыть клиентов и воронку <span>↗</span></button></section>
+   <section class="account-card"><div class="card-heading"><h2>Сделай Точку своей</h2><span class="small">Тема и карта</span></div><div class="pi"><span>Оформление<small>Четыре варианта для комфортной работы</small></span><div class="seg" role="group" aria-label="Тема" id="theme"><button type="button" data-t="light" aria-pressed="true">Светлая</button><button type="button" data-t="dark" aria-pressed="false">Тёмная</button><button type="button" data-t="navy" aria-pressed="false">Тёмно-синяя</button><button type="button" data-t="auto" aria-pressed="false">Авто</button></div></div><div class="pi"><span>Объёмная карта<small>Наклон и настоящие 3D-дома</small></span><button class="sw" id="sw3d" type="button" role="switch" aria-checked="true" aria-label="3D-карта"></button></div><div class="pi"><span>Напоминания<small>Показывать, кому пора написать</small></span><button class="sw" id="swRem" type="button" role="switch" aria-checked="true" aria-label="Напоминания"></button></div></section>
+   <section class="account-card"><div class="card-heading"><h2>Инструменты</h2><span class="small">Для работы с клиентами</span></div><button class="pi" type="button" id="pTpl"><span>Мои шаблоны и подпись<small id="pTplSub">3 шаблона</small></span><span class="chev">›</span></button><button class="pi" type="button" id="pExport"><span>Экспорт в Excel<small>Клиенты, контакты, статусы и заметки</small></span><span class="chev">›</span></button><button class="pi" type="button" id="pRev"><span>Отзывы<small>Прочитать и оставить свой</small></span><span class="chev">›</span></button><div class="pi"><span>Мои данные<small id="pStats"></small></span></div></section>
+  </div><aside class="account-aside">
+   <section class="membership-card"><div class="membership-top"><span>ТОЧКА PRO</span><span class="membership-state" id="membershipState">Подписка</span></div><div class="membership-art"><div><span class="eyebrow">ДЛЯ ТВОИХ ПРОЕКТОВ</span><strong>PRO</strong></div><div class="diamond-stage"><svg class="diamond" viewBox="0 0 120 110" aria-hidden="true"><use href="#tochka-diamond"/></svg><span class="diamond-shadow"></span></div></div><h2>От первой точки<br>до нового клиента.</h2><p>Контакты заведений, личные сообщения, шаблоны и твоя воронка.</p><div class="membership-status" id="pProSub"></div><button class="btn pri" id="pPro" type="button">Подписка и доступ <span>↗</span></button><p class="membership-price">1 день бесплатно · 290 ₽ в месяц</p></section>
+   <section class="account-card compact-card"><span class="eyebrow">ТВОЙ АККАУНТ</span><button class="pi" type="button" id="pAcc"><span>Вход и подписка<small id="pAccSub">Вход не выполнен</small></span><span class="chev">›</span></button><button class="pi pi-adm" type="button" id="pAdm" hidden><span><b>Админ-панель</b><small id="pAdmSub">Пользователи, сроки доступа, доход и отзывы</small></span><span class="chev">›</span></button></section>
+   <section class="account-card compact-card"><div class="device-icon" aria-hidden="true">▣</div><h3>Как выглядит Точка</h3><p class="small">Попробуй интерфейс на телефоне и компьютере.</p><button class="btn" id="workspaceShowcase" type="button">Посмотреть на устройствах ↗</button></section>
+   <section class="account-card compact-card"><h3>Точка всегда рядом</h3><p class="small">На Android, Windows и экране iPhone.</p><a class="btn pi-dl" href="download.html" id="pDl"><svg class="dl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="dl-arrow"><path d="M12 3v11m0 0-4.5-4.5M12 14l4.5-4.5"/></g><path class="dl-tray" d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Скачать приложение</a></section>
+   <p class="small account-source">Данные: © участники OpenStreetMap. Карта: OpenFreeMap. Заметки, избранное и свои места хранятся на этом устройстве.</p>
+  </aside></div>
+ </div></div>
+</section>
+
 </div>
 
 <div class="sheet" id="cp" hidden>
@@ -194,7 +194,7 @@
 <!-- аккаунт и подписка -->
 <div class="sheet" id="pro" hidden>
   <div class="sheet-card pro-card" role="dialog" aria-labelledby="proTitle">
-    <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path class="g-b" d="M1 6h14L8 15z"/><path class="g-t" d="M4 1.5h8L15 6H1z"/><path class="g-l" d="M4 1.5L6 6l2 9M12 1.5L10 6l-2 9M6 6h4"/></svg>PRO</span> Подписка</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
+    <div class="sheet-h"><h3 id="proTitle"><span class="pro-mark"><svg class="diamond" viewBox="0 0 120 110" aria-hidden="true"><use href="#tochka-diamond"/></svg>PRO</span> Подписка</h3><button class="x" id="prox" type="button" aria-label="Закрыть">×</button></div>
     <div class="acc-box" id="accBox"></div>
     <div class="ms-acts" id="accActs"></div>
   </div>
@@ -239,11 +239,11 @@
 <!-- первый запуск: «Начать» и пара вопросов, без регистрации -->
 <div class="gate" id="hello" hidden>
   <div class="gate-card" role="dialog" aria-labelledby="helloTitle" aria-modal="true">
-    <div class="gate-brand"><span class="logo" role="img" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></span></div>
+    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div>
     <div class="g-step" data-hs="0">
-      <div class="logo3d" id="logo3d" aria-hidden="true"><div class="l3d-in"></div></div>
+      <div class="hello-mark" aria-hidden="true">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</div>
       <h2 id="helloTitle">Найдите клиентов на сайты</h2>
-      <p class="g-lead">Карта салонов, барбершопов и маникюра по всей России. Сразу видно, у кого <b>нет сайта</b> — им и можно его предложить.</p>
+      <p class="g-lead">Карта салонов, барбершопов и маникюра по всей России. Можно найти тех, кто <b>предположительно без сайта</b> — им и можно его предложить.</p>
       <button class="btn pri big" type="button" id="hStart">Начать</button>
       <p class="small">Карту и список можно посмотреть без регистрации. Контакты заведений, шаблоны сообщений и блокнот — в Pro: 1 день бесплатно, дальше 290 ₽ в месяц. <a href="o-tochke.html" target="_blank" rel="noopener">как это работает</a> · <a href="oferta.html" target="_blank" rel="noopener">тарифы и оферта</a> · <a href="reviews.html" target="_blank" rel="noopener">отзывы</a>.</p>
     </div>
@@ -251,7 +251,7 @@
       <span class="small h-n">Вопрос 1 из 2</span>
       <h2>Кого ищем?</h2>
       <div class="h-opts" id="hCats"></div>
-      <label class="g-check"><input type="checkbox" id="hNoSite" checked> <span>Показывать только тех, у кого нет своего сайта</span></label>
+      <label class="g-check"><input type="checkbox" id="hNoSite" checked> <span>Показывать тех, кто предположительно без сайта</span></label>
       <button class="btn pri big" type="button" id="hNext">Дальше</button>
     </div>
     <div class="g-step" data-hs="2" hidden>
@@ -267,7 +267,7 @@
 <div class="gate" id="gate" hidden>
   <div class="gate-card" role="dialog" aria-labelledby="gateTitle" aria-modal="true">
     <button class="x g-x" type="button" id="gX" aria-label="Закрыть">×</button>
-    <div class="gate-brand"><span class="logo" role="img" aria-label="Точка"><span aria-hidden="true">Т<svg class="logo-o" viewBox="0 0 24 24"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></span></div>
+    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div>
     <!-- шаг 1: почта -->
     <form id="gEmail" class="g-step" novalidate>
       <h2 id="gateTitle">Контакты и шаблоны — в Pro</h2>
@@ -318,9 +318,12 @@
   </section>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast"></div><section class="workspace-showcase" id="workspaceShowcasePage" hidden aria-label="Точка на устройствах"><div class="showcase-toolbar"><button class="btn" type="button" id="workspaceShowcaseClose">← Вернуться в кабинет</button><span class="small">Интерактивный макет · вымышленные данные</span></div><iframe id="workspaceShowcaseFrame" title="Точка на телефоне и компьютере" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></section>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="app.js"></script>
+<script src="workspace.js"></script>
+<script src="completeness.js"></script>
+<script src="diamond-3d.js"></script>
 </body>
 </html>

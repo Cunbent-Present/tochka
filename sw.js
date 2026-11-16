@@ -1,7 +1,7 @@
 // Кэширует оболочку приложения, чтобы оно быстро открывалось и ставилось на телефон.
-const CACHE = 'tochka-v27';
+const CACHE = 'tochka-v28';
 const SHELL = [
-  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js', 'workspace.css', 'workspace.js', 'completeness.js', 'diamond-3d.js', 'manrope-cyrillic-ext.woff2', 'manrope-cyrillic.woff2', 'manrope-latin-ext.woff2', 'manrope-latin.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
