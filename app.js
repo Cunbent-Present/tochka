@@ -455,7 +455,15 @@ function restyleMap() {
 }
 { const onSys = () => { if (themeMode === 'auto') restyleMap(); };   // старые Safari знают только addListener
   if (sysDark.addEventListener) sysDark.addEventListener('change', onSys); else if (sysDark.addListener) sysDark.addListener(onSys); }
-map.on('load', () => { loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); });
+function resizeMapViewport() {
+  if (!map || !map.getContainer().isConnected) return;
+  requestAnimationFrame(() => map.resize());
+  setTimeout(() => map.resize(), 180);
+}
+map.on('load', () => { loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); resizeMapViewport(); });
+addEventListener('pageshow', resizeMapViewport);
+addEventListener('orientationchange', resizeMapViewport);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) resizeMapViewport(); });
 
 const geo = list => ({
   type: 'FeatureCollection',
