@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f4f0">
+  <meta name="description" content="Демонстрационный сайт студии красоты: услуги, подход и запись. Все данные на странице приведены для примера.">
+  <title>Линия — демонстрационный сайт студии красоты</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="demo-strip">Демонстрационный макет · название, услуги и контакты приведены для примера</div>
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="Линия — на главную"><span class="brand-mark" aria-hidden="true">Л</span><span>линия<span class="brand-dot">.</span></span></a>
+    <nav class="main-nav" aria-label="Основная навигация">
+      <a href="#services">Услуги</a><a href="#approach">О студии</a><a href="#how">Как проходит визит</a><a href="#contacts">Контакты</a>
+    </nav>
+    <button class="button button-small nav-cta" type="button" data-open-dialog>Записаться</button>
+    <button class="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="mobile-nav"><span></span><span></span></button>
+  </header>
+  <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация" hidden>
+    <a href="#services">Услуги</a><a href="#approach">О студии</a><a href="#how">Как проходит визит</a><a href="#contacts">Контакты</a>
+    <button class="button" type="button" data-open-dialog>Записаться</button>
+  </nav>
+  <main>
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="eyebrow-line"></span> студия заботы о себе</p>
+        <h1 id="hero-title">Место, где можно <em>выдохнуть</em> и быть собой.</h1>
+        <p class="hero-lead">Время для ухода, спокойствия и внимания к деталям. Выберите то, что нужно именно вам, — остальное мы бережно возьмём на себя.</p>
+        <div class="hero-actions"><button class="button" type="button" data-open-dialog>Выбрать время</button><a class="text-link" href="#services">Посмотреть услуги <span aria-hidden="true">↗</span></a></div>
+        <div class="hero-footer"><span class="asterisk" aria-hidden="true">✳</span><span>Красота начинается с ощущения комфорта</span></div>
+      </div>
+      <div class="hero-art" role="img" aria-label="Абстрактная иллюстрация в мягких розовых и сиреневых тонах">
+        <div class="art-frame"><div class="art-arch"></div><div class="art-sun"></div><div class="art-leaf leaf-one"></div><div class="art-leaf leaf-two"></div><div class="art-face"></div><div class="art-neck"></div><div class="art-hair"></div><div class="art-line line-one"></div><div class="art-line line-two"></div></div>
+        <div class="art-stamp">ваше время<br><strong>для себя</strong></div>
+      </div>
+    </section>
+    <section class="intro-band" aria-label="Философия студии"><div class="wrap band-inner"><span>Спокойный ритм</span><i aria-hidden="true">✳</i><span>Внимание к деталям</span><i aria-hidden="true">✳</i><span>Результат, который радует</span></div></section>
+    <section class="section wrap" id="services" aria-labelledby="services-title">
+      <div class="section-head"><div><p class="eyebrow">Что мы делаем</p><h2 id="services-title">Уход под ваше <em>настроение</em></h2></div><p>Знакомые процедуры в атмосфере, куда хочется вернуться. Состав услуг здесь показан как пример и легко меняется под ваш бизнес.</p></div>
+      <div class="services-grid">
+        <article class="service-card service-card-lilac"><span class="service-number">01</span><div class="service-icon icon-hair" aria-hidden="true"><span></span></div><div><h3>Волосы</h3><p>Стрижка, укладка и бережный уход с учётом вашего образа и привычек.</p><button class="card-link" type="button" data-open-dialog>Обсудить запись <span aria-hidden="true">↗</span></button></div></article>
+        <article class="service-card service-card-peach"><span class="service-number">02</span><div class="service-icon icon-face" aria-hidden="true"><span></span></div><div><h3>Лицо и брови</h3><p>Аккуратные детали, которые подчёркивают естественную красоту.</p><button class="card-link" type="button" data-open-dialog>Обсудить запись <span aria-hidden="true">↗</span></button></div></article>
+        <article class="service-card service-card-green"><span class="service-number">03</span><div class="service-icon icon-nails" aria-hidden="true"><span></span></div><div><h3>Маникюр</h3><p>Уход для рук и покрытие, которое подходит вашему темпу жизни.</p><button class="card-link" type="button" data-open-dialog>Обсудить запись <span aria-hidden="true">↗</span></button></div></article>
+      </div>
+    </section>
+    <section class="approach" id="approach" aria-labelledby="approach-title"><div class="wrap approach-grid"><div class="approach-visual"><div class="approach-circle"></div><span class="approach-big">Л</span><div class="approach-note">немного тишины<br>среди большого дня</div></div><div class="approach-copy"><p class="eyebrow">Наш подход</p><h2 id="approach-title">Уход, в котором <em>всё про вас</em></h2><p>Мы верим, что приятный визит складывается из простых вещей: вас слушают, подробно отвечают на вопросы и не торопят с выбором.</p><p>Поэтому здесь можно сделать паузу, спокойно обсудить пожелания и уделить время себе.</p><button class="button button-outline" type="button" data-open-dialog>Хочу попробовать</button></div></div></section>
+    <section class="section wrap how" id="how" aria-labelledby="how-title"><div class="section-head"><div><p class="eyebrow">Всё просто</p><h2 id="how-title">Ваш визит <em>по шагам</em></h2></div><p>Понятный путь от первого сообщения до встречи. Эти блоки можно настроить под реальные правила вашей студии.</p></div><div class="steps"><div class="step"><span>01</span><h3>Выберите услугу</h3><p>Посмотрите направления и отметьте то, что вам интересно.</p></div><div class="step"><span>02</span><h3>Уточните детали</h3><p>Расскажите о пожеланиях — мы поможем выбрать подходящий вариант.</p></div><div class="step"><span>03</span><h3>Приходите на встречу</h3><p>Остаётся только найти удобное время и уделить его себе.</p></div></div></section>
+    <section class="closing" id="contacts" aria-labelledby="closing-title"><div class="wrap closing-grid"><div><p class="eyebrow">Ждём вас</p><h2 id="closing-title">Найдите время <em>для себя</em></h2><p>Оставьте повседневные дела за дверью. Мы поможем сделать ваш день немного приятнее.</p><button class="button button-light" type="button" data-open-dialog>Узнать о записи</button></div><div class="contact-card"><span>Контакты в готовом сайте</span><p>Здесь появятся ваш адрес, часы работы, телефон, мессенджеры и ссылка на онлайн-запись.</p><div class="contact-lines"><i></i><i></i><i></i></div></div></div></section>
+  </main>
+  <footer class="site-footer wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">Л</span><span>линия<span class="brand-dot">.</span></span></a><span>Демонстрационный сайт от «Точки». Название и данные вымышлены.</span><a href="#top">Наверх ↑</a></footer>
+  <dialog class="demo-dialog" id="booking-dialog" aria-labelledby="dialog-title"><button class="dialog-close" type="button" aria-label="Закрыть" data-close-dialog>×</button><span class="dialog-icon" aria-hidden="true">✳</span><h2 id="dialog-title">Здесь будет запись</h2><p>Это демонстрационный макет. В готовом сайте кнопка может открывать вашу онлайн-запись, мессенджер или форму заявки.</p><button class="button" type="button" data-close-dialog>Понятно</button></dialog>
+</body>
+</html>
