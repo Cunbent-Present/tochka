@@ -894,8 +894,15 @@ $('#proTourNext').onclick = () => {
 };
 $('#proTour').addEventListener('click', e => { if (e.target.id === 'proTour') closeProTour(); });
 let wasPro = isPro();
+function updateDraftEmailsAccess() {
+  const button = $('#draftEmails');
+  if (!button) return;
+  button.textContent = isPro() ? 'Подготовить 10 писем' : '🔒 Подготовить письма · Pro';
+  button.title = isPro() ? 'Подготовить до 10 персональных черновиков' : 'Доступно с Точкой Pro';
+}
 function applyAccess() {
   document.documentElement.classList.toggle('is-pro', authOn() && isPro());
+  updateDraftEmailsAccess();
   if (!authOn() || isPro()) hideGate();
   else if (session && gateStep) showGate('pay');   // вошёл, но пробный период уже закончился
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
@@ -1611,7 +1618,7 @@ $('#draftEmails').onclick = async () => {
     notes.unshift(...drafts); saveNotes(); drawNotes();
     toast(`Подготовлено писем: ${drafts.length}. Проверьте каждое перед отправкой.`, 3600);
   } catch (error) { toast('Не удалось подготовить письма: ' + error.message, 4000); }
-  finally { button.disabled = false; button.textContent = 'Подготовить 10 писем'; }
+  finally { button.disabled = false; updateDraftEmailsAccess(); }
 };
 const waNumber = ph => {
   let d = String(ph).split(/[;,]/)[0].replace(/\D/g, '');
