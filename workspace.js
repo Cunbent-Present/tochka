@@ -11,8 +11,8 @@ function workspaceSync(){
  document.querySelectorAll('.view').forEach(view=>view.inert=view.id!==current);
  $('#profileAccess').textContent=session ? session.user.email : 'Профиль на этом устройстве';
  $('#workspaceSaved').textContent=Object.keys(favs).length;
- $('#workspaceSent').textContent=notes.filter(n=>['sent','reply','deal','no'].includes(n.s)).length;
- $('#workspaceReplies').textContent=notes.filter(n=>['reply','deal'].includes(n.s)).length;
+ $('#workspaceSent').textContent=notes.filter(isContacted).length;
+ $('#workspaceReplies').textContent=notes.filter(isAnswered).length;
  $('#workspaceDeals').textContent=notes.filter(n=>n.s==='deal').length;
  $('#membershipState').textContent=acct?.admin?'Администратор':acct?.state==='active'?'Активна':acct?.state==='trial'?'Пробный доступ':'Подписка';
  if(!session)$('#pProSub').textContent='Контакты и инструменты откроются после входа.';

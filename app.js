@@ -1437,12 +1437,14 @@ function setStatus(m) { const s = $('#status'); s.textContent = m; s.hidden = !m
 /* ---------- блокнот ---------- */
 let notes = store.get(NOTES_KEY, []);
 let notePlace = null;    // заведение, из карточки которого открыли блокнот
-const STATUSES = [['new', 'Новый'], ['sent', 'Написал'], ['reply', 'Ответил'], ['deal', 'Договорились'], ['no', 'Отказ']];
+const STATUSES = [['new', 'Новый'], ['sent', 'Написал'], ['reply', 'Ответил'], ['deal', 'Договорились'], ['ignore', 'Проигнорировал'], ['no', 'Отказался']];
 const stName = s => (STATUSES.find(x => x[0] === s) || STATUSES[0])[1];
+const isContacted = n => ['sent', 'reply', 'deal', 'ignore', 'no'].includes(n.s);
+const isAnswered = n => ['reply', 'deal', 'no'].includes(n.s);
 const DAY = 864e5;
 const dayAt = days => { const d = new Date(); d.setHours(10, 0, 0, 0); return d.getTime() + days * DAY; };
 const endOfToday = () => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); };
-const isDue = n => n.r && n.r <= endOfToday() && n.s !== 'deal' && n.s !== 'no';
+const isDue = n => n.r && n.r <= endOfToday() && !['deal', 'ignore', 'no'].includes(n.s);
 const fmtDay = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 const saveNotes = () => { if (!store.set(NOTES_KEY, notes)) toast('Не удалось сохранить: память браузера заполнена'); };
 function drawNotes() {
@@ -1452,7 +1454,9 @@ function drawNotes() {
   $('#due').setAttribute('aria-label', due ? `Пора написать: ${due}` : '');
   $('#nl').innerHTML = notes.length ? notes.map(n => `
     <div class="note"><div class="nt-top">
-      <button class="st st-${n.s || 'new'}" type="button" data-st="${n.d}" title="Нажмите, чтобы сменить статус">${stName(n.s)}</button>
+      <label class="note-status">Статус <select class="st st-${n.s || 'new'}" data-st="${n.d}" aria-label="Статус: ${esc(noteName(n))}">
+        ${STATUSES.map(([key, name]) => `<option value="${key}"${(n.s || 'new') === key ? ' selected' : ''}>${name}</option>`).join('')}
+      </select></label>
       <span class="small">${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
       ${n.r ? `<div class="remline${isDue(n) ? ' due' : ''}">⏰ ${isDue(n) ? 'Пора написать · ' : 'Напомнить '}${fmtDay(n.r)}</div>` : ''}
       <p>${esc(n.t)}</p>
@@ -1467,13 +1471,14 @@ function drawNotes() {
   $('#nl').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     notes = notes.filter(n => n.d !== +b.dataset.del); saveNotes(); drawNotes(); toast('Заметка удалена');
   });
-  $('#nl').querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
-    const n = notes.find(x => x.d === +b.dataset.st); if (!n) return;
-    const i = STATUSES.findIndex(x => x[0] === (n.s || 'new'));
-    n.s = STATUSES[(i + 1) % STATUSES.length][0];
-    if (n.s === 'sent') n.sentAt = Date.now();
-    if (n.s === 'deal' || n.s === 'no') delete n.r;
-    saveNotes(); drawNotes();
+  $('#nl').querySelectorAll('[data-st]').forEach(sel => sel.onchange = () => {
+    const n = notes.find(x => x.d === +sel.dataset.st);
+    if (!n || !STATUSES.some(([key]) => key === sel.value)) return;
+    n.s = sel.value;
+    if (n.s === 'new') delete n.sentAt;
+    else if (!n.sentAt) n.sentAt = Date.now();
+    if (['deal', 'ignore', 'no'].includes(n.s)) delete n.r;
+    saveNotes(); drawNotes(); toast('Статус: ' + stName(n.s));
   });
   $('#nl').querySelectorAll('[data-rem]').forEach(sel => sel.onchange = () => {
     const n = notes.find(x => x.d === +sel.dataset.rem); if (!n || sel.value === '') return;
@@ -1482,6 +1487,7 @@ function drawNotes() {
     saveNotes(); drawNotes();
   });
   if (current === 'v-crm') renderCrm(); else renderTodoBadge();
+  if (typeof workspaceSync === 'function') workspaceSync();
   $('#nl').querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +b.dataset.go); if (!n) return;
     go('v-map');
@@ -1627,12 +1633,12 @@ $('#tplDone').onclick = () => { if (!msgPlace) { closeMsg(); renderProfile(); re
 function openNotes() { go('v-crm'); requestAnimationFrame(() => $('#nf').scrollIntoView({ block: 'center', behavior: REDUCE ? 'auto' : 'smooth' })); }
 
 /* ---------- «Мои клиенты»: сводка, кому написать, воронка, неделя ---------- */
-const BAR = { new: 'var(--bar-new)', sent: 'var(--bar-sent)', reply: 'var(--bar-reply)', deal: 'var(--bar-deal)', no: 'var(--bar-no)' };
+const BAR = { new: 'var(--bar-new)', sent: 'var(--bar-sent)', reply: 'var(--bar-reply)', deal: 'var(--bar-deal)', ignore: 'var(--bar-ignore)', no: 'var(--bar-no)' };
 const noteName = n => (n.place && n.place.name) || (n.t || '').split('\n')[0].slice(0, 60) || 'Заметка';
 function renderTodoBadge() { /* значок на вкладке обновляет drawNotes */ }
 function renderCrm() {
   const cnt = k => notes.filter(n => (n.s || 'new') === k).length;
-  const contacted = notes.length - cnt('new'), answered = cnt('reply') + cnt('deal');
+  const contacted = notes.filter(isContacted).length, answered = notes.filter(isAnswered).length;
   $('#successSummary').hidden = !isPro();
   $('#successSummary').textContent = contacted
     ? `Ты написал ${contacted} клиентам — ответили ${answered}, договорились ${cnt('deal')}.`
