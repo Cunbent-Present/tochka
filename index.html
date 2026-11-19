@@ -98,7 +98,7 @@
   <section class="view off" id="v-crm" aria-label="Мои клиенты">
     <div class="v-head">
       <h2>Мои клиенты</h2>
-      <div class="head-acts"><button class="btn" type="button" id="export">Экспорт в Excel</button><button class="btn" type="button" id="copyall">Скопировать все</button></div>
+      <div class="head-acts"><button class="btn pri" type="button" id="draftEmails">Подготовить 10 писем</button><button class="btn" type="button" id="export">Экспорт в Excel</button><button class="btn" type="button" id="copyall">Скопировать все</button></div>
     </div>
     <div class="v-scroll crm">
       <div class="success-summary" id="successSummary" hidden></div>
@@ -156,7 +156,7 @@
       <div class="tpl-chips" id="tplChips"></div>
       <textarea id="msText" rows="7" aria-label="Текст сообщения"></textarea>
       <div class="ms-opts">
-        <label><input type="checkbox" id="msNote" checked> Записать в блокнот как «Написал»</label>
+         <span class="small">После отправки отметьте письмо в «Точке».</span>
         <label><input type="checkbox" id="msRemind" checked> Напомнить через 3 дня</label>
       </div>
       <div class="ms-acts" id="msActs"></div>

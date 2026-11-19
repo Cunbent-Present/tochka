@@ -1471,7 +1471,7 @@ function drawNotes() {
       ${n.r ? `<div class="remline${isDue(n) ? ' due' : ''}">⏰ ${isDue(n) ? 'Пора написать · ' : 'Напомнить '}${fmtDay(n.r)}</div>` : ''}
       <p>${esc(n.t)}</p>
       <div class="nf">
-      ${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : '<span></span>'}
+      <div>${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : ''}${n.mailDraft && n.s === 'new' ? `<button class="mini" type="button" data-draft="${n.d}">Открыть письмо</button>` : ''}</div>
       <div><select class="mini rem" data-rem="${n.d}" aria-label="Напоминание">
         <option value="">⏰ Напомнить</option><option value="1">Завтра</option><option value="3">Через 3 дня</option><option value="7">Через неделю</option>${n.r ? '<option value="0">Убрать</option>' : ''}
       </select>
@@ -1504,6 +1504,14 @@ function drawNotes() {
     if (n.pid && !places.has(n.pid) && n.place) places.set(n.pid, n.place);
     if (n.pid && places.has(n.pid)) select(n.pid, true);
     else map.flyTo({ center: [n.lon, n.lat], zoom: 16.5, essential: true });
+  });
+  $('#nl').querySelectorAll('[data-draft]').forEach(b => b.onclick = () => {
+    if (needPro()) return;
+    const n = notes.find(x => x.d === +b.dataset.draft);
+    if (!n || !n.place) return;
+    const p = places.get(n.pid) || n.place;
+    if (!places.has(p.id)) places.set(p.id, p);
+    withContacts(p).then(openMsg, contactsError);
   });
 }
 $('#nf').addEventListener('submit', e => {
@@ -1548,7 +1556,7 @@ const DEFAULT_TPL = [
 ];
 let tpls = store.get(TPL_KEY, null) || DEFAULT_TPL.map(x => ({ ...x }));
 let sign = store.get(SIGN_KEY, '');
-let msgPlace = null, tplIdx = 0, logged = false;
+let msgPlace = null, msgDraft = null, tplIdx = 0, logged = false;
 const ABOUT_SITE = {
   none: 'у вас пока нет своего сайта',
   social: 'вас можно найти только через соцсети или онлайн-запись, а своего сайта нет',
@@ -1566,6 +1574,45 @@ function fillTpl(t, p) {
     .replace(/\{про_сайт\}/g, ABOUT_SITE[siteKind(p)])
     .replace(/\{подпись\}/g, sign.trim() ? '\n\n' + sign.trim() : '');
 }
+const EMAIL_IDEA = {
+  barber: 'услуги, цены, мастера и удобная запись', beauty: 'услуги, цены, мастера и удобная запись',
+  nails: 'услуги, цены, работы мастеров и удобная запись',
+  cafe: 'меню, часы работы и связь с гостями', restaurant: 'меню, бронирование и связь с гостями',
+  bakery: 'ассортимент, адрес и связь с покупателями', flowers: 'каталог букетов и удобный заказ',
+  pet: 'товары, часы работы и связь с покупателями', vet: 'услуги, врачи и запись на приём'
+};
+function emailDraftFor(p, address) {
+  const subject = `Идея сайта для «${p.name}»`;
+  const body = `Здравствуйте!\n\nУвидел «${p.name}» на карте. Я занимаюсь созданием сайтов для небольших компаний. Для вас можно было бы сделать страницу, где собраны ${EMAIL_IDEA[p.cat] || 'услуги, цены и удобная связь с клиентами'}.\n\nЕсли вам это актуально, я с удовольствием покажу пример оформления и отвечу на вопросы. Буду благодарен за ответ.${sign.trim() ? '\n\nС уважением,\n' + sign.trim() : ''}`;
+  return { address, subject, body };
+}
+$('#draftEmails').onclick = async () => {
+  if (needPro()) return;
+  const button = $('#draftEmails'); button.disabled = true; button.textContent = 'Подбираю…';
+  try {
+    const seen = new Set(notes.map(n => n.pid).filter(Boolean));
+    const candidates = [...visible].filter(p => p.db && !p.mine && !seen.has(p.id) && (p.email === '*' || cleanPlaceEmail(p.email)))
+      .sort((a, b) => lead(b).score - lead(a).score).slice(0, 300);
+    if (!candidates.length) return toast('Сначала загрузите заведения на карте. Уже добавленных в блокнот не повторяю.', 3500);
+    const emails = new Map(candidates.filter(p => p.email !== '*').map(p => [p.id, cleanPlaceEmail(p.email)]));
+    const locked = candidates.filter(p => p.email === '*');
+    for (let i = 0; i < locked.length; i += 80) {
+      const ids = locked.slice(i, i + 80).map(p => p.id).join(',');
+      const rows = await api(`/rest/v1/place_contacts?select=id,email&id=in.(${ids})`, { token: await token() });
+      for (const row of rows || []) if (row.email) emails.set(row.id, cleanPlaceEmail(row.email));
+    }
+    const drafts = candidates.filter(p => emails.get(p.id)).slice(0, 10).map((p, i) => {
+      const mail = emailDraftFor(p, emails.get(p.id));
+      return { t: `Кому: ${mail.address}\nТема: ${mail.subject}\n\n${mail.body}`, d: Date.now() + i,
+        s: 'new', pid: p.id, lat: p.lat, lon: p.lon, place: p,
+        mailDraft: true, mailTo: mail.address, mailSubject: mail.subject, mailBody: mail.body };
+    });
+    if (!drafts.length) return toast('У загруженных заведений пока нет доступных проверенных email.', 3500);
+    notes.unshift(...drafts); saveNotes(); drawNotes();
+    toast(`Подготовлено писем: ${drafts.length}. Проверьте каждое перед отправкой.`, 3600);
+  } catch (error) { toast('Не удалось подготовить письма: ' + error.message, 4000); }
+  finally { button.disabled = false; button.textContent = 'Подготовить 10 писем'; }
+};
 const waNumber = ph => {
   let d = String(ph).split(/[;,]/)[0].replace(/\D/g, '');
   if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
@@ -1574,6 +1621,7 @@ const waNumber = ph => {
 };
 function openMsg(p) {
   msgPlace = p; logged = false;
+  msgDraft = notes.find(n => n.pid === p.id && n.mailDraft && n.s === 'new') || null;
   const exists = notes.find(n => n.pid === p.id && n.s && n.s !== 'new');
   tplIdx = exists && tpls.length > 2 ? 2 : 0;   // уже писали — предлагаем «Повторно»
   $('#msTitle').textContent = 'Написать: ' + p.name;
@@ -1586,28 +1634,34 @@ function drawMsg() {
   if (!tpls.length) tpls = DEFAULT_TPL.map(x => ({ ...x }));
   tplIdx = Math.min(tplIdx, tpls.length - 1);
   $('#tplChips').innerHTML = tpls.map((x, i) => `<button type="button" class="chip" data-tpl="${i}" aria-pressed="${i === tplIdx}">${esc(x.n || 'Шаблон ' + (i + 1))}</button>`).join('');
-  $('#tplChips').querySelectorAll('[data-tpl]').forEach(b => b.onclick = () => { tplIdx = +b.dataset.tpl; drawMsg(); });
-  $('#msText').value = fillTpl(tpls[tplIdx].t, p);
+  $('#tplChips').querySelectorAll('[data-tpl]').forEach(b => b.onclick = () => { msgDraft = null; tplIdx = +b.dataset.tpl; drawMsg(); });
+  $('#msText').value = msgDraft ? msgDraft.mailBody : fillTpl(tpls[tplIdx].t, p);
   const wa = p.phone && waNumber(p.phone);
   const acts = [`<button class="btn pri" type="button" data-act="copy">Скопировать текст</button>`];
   if (p.tg) acts.push(`<a class="btn" data-act="open" href="${esc(handle(p.tg, 'https://t.me/'))}" target="_blank" rel="noopener">Telegram</a>`);
   if (wa) acts.push(`<a class="btn" data-act="wa" href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>`);
   if (p.vk) acts.push(`<a class="btn" data-act="open" href="${esc(handle(p.vk, 'https://vk.com/'))}" target="_blank" rel="noopener">VK</a>`);
   if (siteKind(p) === 'social') acts.push(`<a class="btn" data-act="open" href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">Их страница</a>`);
-  if (p.email) acts.push(`<a class="btn" data-act="mail" href="mailto:${esc(p.email)}">Email</a>`);
+  if (p.email) acts.push(`<a class="btn" data-act="mail" href="https://mail.google.com/mail/?view=cm&fs=1" target="_blank" rel="noopener">Открыть в Gmail</a>`);
   if (p.phone) acts.push(`<a class="btn" data-act="call" href="tel:${esc(String(p.phone).split(/[;,]/)[0].replace(/[^\d+]/g, ''))}">Позвонить</a>`);
+  acts.push('<button class="btn" type="button" data-act="sent">Отметить как отправленное</button>');
   $('#msActs').innerHTML = acts.join('');
   $('#msActs').querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const text = $('#msText').value;
     const act = b.dataset.act;
     if (act === 'wa') b.href = `https://wa.me/${wa}?text=${encodeURIComponent(text)}`;
-    if (act === 'mail') b.href = `mailto:${p.email}?subject=${encodeURIComponent('Сайт для ' + p.name)}&body=${encodeURIComponent(text)}`;
+    if (act === 'mail') {
+      const address = p.email;
+      const subject = msgDraft?.mailSubject || `Сайт для «${p.name}»`;
+      b.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(address)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+      toast('Письмо откроется в Gmail. После отправки отметьте его в «Точке».', 3800);
+    }
+    if (act === 'sent') { logContact(p); closeMsg(); return; }
     if (act === 'copy' || act === 'open') copy(text, act === 'open' ? 'Текст скопирован — вставьте его в чат' : 'Текст скопирован');
-    if (act !== 'call') logContact(p);
   });
 }
 function logContact(p) {
-  if (logged || !$('#msNote').checked) return;
+  if (logged) return;
   logged = true;
   let n = notes.find(x => x.pid === p.id);
   if (!n) {
