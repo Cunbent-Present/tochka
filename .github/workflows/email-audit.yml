@@ -1,0 +1,35 @@
+name: Проверить почты заведений
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/email_validation.py'
+      - 'scripts/audit_emails.py'
+      - '.github/workflows/email-audit.yml'
+  schedule:
+    - cron: '47 3 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: email-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Проверить правила
+        run: python -m unittest scripts/test_email_validation.py
+      - name: Проверить адреса в базе
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python scripts/audit_emails.py

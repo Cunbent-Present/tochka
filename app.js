@@ -84,6 +84,15 @@ function categorize(t) {
   }
   return 'beauty';
 }
+function cleanPlaceEmail(raw) {
+  for (const part of String(raw || '').split(/[;,\s]+/)) {
+    const address = part.replace(/^mailto:/i, '');
+    const match = address.match(/^([A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$/);
+    if (!match || address.length > 254 || match[1].length > 64 || match[2].length > 253) continue;
+    if (match[2].split('.').every(label => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))) return address;
+  }
+  return '';
+}
 function parseEl(el) {
   const t = el.tags || {};
   if (!t.name) return null;
@@ -98,7 +107,7 @@ function parseEl(el) {
     city: city || '',
     phone: t.phone || t['contact:phone'] || '',
     site: (t.website || t['contact:website'] || t.url || '').split(/\s*;\s*/)[0],   // бывает несколько через «;» — берём первый
-    email: t.email || t['contact:email'] || '',
+    email: t.email === '*' || t['contact:email'] === '*' ? '*' : cleanPlaceEmail([t.email, t['contact:email']].filter(Boolean).join(';')),
     hours: t.opening_hours || '',
     vk: t['contact:vk'] || '', tg: t['contact:telegram'] || '', inst: t['contact:instagram'] || '',
     operator: t.operator || ''
@@ -779,6 +788,7 @@ function withContacts(p) {
     const rows = await api(`/rest/v1/place_contacts?select=phone,email,tg,vk,inst&id=eq.${encodeURIComponent(p.id)}`, { token: await token() });
     if (!rows || !rows[0]) throw new Error('NO_ACCESS');   // строка есть у каждого «*», пусто — сервер не дал доступ
     for (const k of ['phone', 'email', 'tg', 'vk', 'inst']) p[k] = rows[0][k] || '';
+    p.email = cleanPlaceEmail(p.email);
     delete p.locked;
     return p;
   })().finally(() => contactsLoading.delete(p.id)));

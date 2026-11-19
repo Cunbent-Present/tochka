@@ -33,7 +33,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+
+from email_validation import checked_address, domain_of, candidates, mail_domain_status
 
 ENDPOINTS = [
     "https://overpass.private.coffee/api/interpreter",
@@ -269,6 +272,13 @@ def protect(rows):
     global upload_broken
     if not SUPABASE_KEY or upload_broken:
         raise RuntimeError("Нет доступа к хранилищу контактов; публичный файл не записан")
+    # DNS answers are cached by domain. Warm them in parallel so a large region
+    # does not wait for every independent resolver request in sequence.
+    domains = {domain for r in rows for tag in ("email", "contact:email")
+               for address in candidates(r[3].get(tag))
+               if (domain := domain_of(address))}
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        list(pool.map(mail_domain_status, domains))
     items, out = [], []
     for r in rows:
         t = r[3]
@@ -276,10 +286,18 @@ def protect(rows):
         for tag, col in SECRET.items():
             v = t.get(tag)
             if v and v != HIDDEN:
-                found.setdefault(col, v)
-        if found:
+                if col == "email":
+                    address = checked_address(v)
+                    if address:
+                        found.setdefault(col, address)
+                else:
+                    found.setdefault(col, v)
+        had_email = any(t.get(tag) and t[tag] != HIDDEN for tag in ("email", "contact:email"))
+        if found or had_email:
             items.append({"id": r[0], **{c: found.get(c) for c in ("phone", "email", "tg", "vk", "inst")}})
-            t = {k: (HIDDEN if k in SECRET else v) for k, v in t.items()}
+        # A bad address must not remain visible in public OSM-derived files.
+        t = {k: (HIDDEN if k in SECRET and (SECRET[k] != "email" or found.get("email")) else v)
+             for k, v in t.items() if k not in ("email", "contact:email") or v == HIDDEN or found.get("email")}
         out.append([r[0], r[1], r[2], t])
     if not items:
         return out
