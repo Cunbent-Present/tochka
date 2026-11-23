@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f3f8">
+  <meta name="description" content="MIRA — демонстрационный концепт сайта салона красоты с интерактивной 3D-сценой, услугами и примером записи.">
+  <title>MIRA — студия красоты · демонстрационный сайт</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <div class="demo-bar">Демонстрационный концепт для салона красоты <span>Название, услуги и контакты — пример</span></div>
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="MIRA — наверх">MIRA<span class="brand-star">✳</span><small>beauty studio</small></a>
+    <nav class="nav" id="navigation" aria-label="Основная навигация">
+      <a href="#about">О студии</a><a href="#services">Услуги</a><a href="#space">Пространство</a><a href="#faq">Вопросы</a>
+    </nav>
+    <button class="button button-dark header-book" data-book>Записаться</button>
+    <button class="menu-toggle" id="menu-toggle" aria-controls="navigation" aria-expanded="false" aria-label="Открыть меню"><span></span><span></span></button>
+  </header>
+  <main>
+    <section class="hero section-shell" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> Пространство для себя</div>
+        <h1 id="hero-title">Красота,<br>у которой есть <em>время</em></h1>
+        <p>Место, где можно выдохнуть, довериться мастеру и уйти с ощущением, что день стал чуть лучше.</p>
+        <div class="hero-actions"><button class="button button-lilac" data-book>Выбрать услугу</button><a class="text-link" href="#services">Смотреть услуги <span aria-hidden="true">↗</span></a></div>
+        <div class="hero-caption"><span class="caption-icon">✳</span> Концепт сайта для вашего салона<br><span>Здесь может быть ваше название</span></div>
+      </div>
+      <div class="hero-art" id="hero-art">
+        <canvas id="hero-canvas" aria-hidden="true"></canvas>
+        <div class="art-fallback" aria-hidden="true"><div class="fallback-halo"></div><div class="fallback-bottle"><i></i><b>MIRA</b><small>ritual of beauty</small></div><div class="fallback-orb"></div></div>
+        <div class="art-note art-note-one">01 / beauty ritual</div><div class="art-note art-note-two">Потяните, чтобы повернуть</div>
+      </div>
+      <div class="hero-footer"><span>Красота без спешки</span><span>Листайте вниз <i aria-hidden="true">↓</i></span></div>
+    </section>
+
+    <section class="intro section-shell" id="about">
+      <div class="section-kicker">Знакомство с MIRA</div>
+      <div class="intro-grid"><h2>Забота о себе<br>может быть <em>красивой</em><br>привычкой.</h2><div class="intro-right"><p>В хорошую студию приходят за результатом. Возвращаются — за тем, как здесь себя чувствуют. Этот сайт передаёт настроение ещё до первого визита.</p><a class="text-link" href="#space">Почувствовать атмосферу <span aria-hidden="true">↗</span></a></div></div>
+      <div class="values"><div><span>✳</span><strong>Внимание к деталям</strong><p>От первого сообщения до последнего штриха.</p></div><div><span>◌</span><strong>Своя атмосфера</strong><p>Спокойный ритм и место, где легко быть собой.</p></div><div><span>✦</span><strong>Ваш результат</strong><p>Красота, которая подходит именно вам.</p></div></div>
+    </section>
+
+    <section class="services section-shell" id="services">
+      <div class="section-head"><div><div class="section-kicker">Меню красоты</div><h2>Выберите свой <em>ритуал</em></h2></div><p>В реальном проекте здесь будут точные услуги, цены и длительность процедур вашего салона.</p></div>
+      <div class="filter-row" role="group" aria-label="Фильтр услуг"><button class="filter active" data-filter="all" aria-pressed="true">Все услуги</button><button class="filter" data-filter="hair" aria-pressed="false">Волосы</button><button class="filter" data-filter="face" aria-pressed="false">Лицо</button><button class="filter" data-filter="nails" aria-pressed="false">Ногти</button></div>
+      <div class="service-grid">
+        <article class="service-card service-hair" data-category="hair"><div class="service-art hair-art"><div class="hair-strand h1"></div><div class="hair-strand h2"></div><div class="hair-strand h3"></div><div class="hair-shine"></div></div><div class="service-info"><span>Волосы / 01</span><h3>Стрижка и укладка</h3><p>Форма, которая подходит вашему ритму жизни.</p><button data-book data-service="Стрижка и укладка">Подробнее</button></div></article>
+        <article class="service-card service-face" data-category="face"><div class="service-art face-art"><div class="face-orbit"></div><div class="face-disc"></div><div class="face-pearl"></div></div><div class="service-info"><span>Лицо / 02</span><h3>Уход за лицом</h3><p>Время остановиться и уделить внимание себе.</p><button data-book data-service="Уход за лицом">Подробнее</button></div></article>
+        <article class="service-card service-nails" data-category="nails"><div class="service-art nail-art"><div class="nail-bottle"><i></i></div><div class="nail-splash"></div></div><div class="service-info"><span>Ногти / 03</span><h3>Маникюр</h3><p>Аккуратные детали, которые меняют настроение.</p><button data-book data-service="Маникюр">Подробнее</button></div></article>
+        <article class="service-card service-hair care" data-category="hair"><div class="service-art care-art"><div class="care-ring"></div><div class="care-jar"><i></i><b>MIRA</b></div></div><div class="service-info"><span>Волосы / 04</span><h3>Уход и восстановление</h3><p>Мягкий ритуал для блеска и ощущения лёгкости.</p><button data-book data-service="Уход и восстановление">Подробнее</button></div></article>
+      </div>
+    </section>
+
+    <section class="experience" id="space"><div class="experience-inner section-shell"><div class="experience-copy"><div class="section-kicker">Атмосфера</div><h2>Место, где<br>можно <em>замедлиться</em></h2><p>Тактильные материалы, мягкий свет и немного тишины. Показать характер салона можно без шаблонных стоковых фотографий: через собственный визуальный мир.</p><button class="button button-light" data-book>Хочу записаться</button></div><div class="experience-art" aria-label="Декоративная композиция с объёмным цветком"><div class="petal petal-1"></div><div class="petal petal-2"></div><div class="petal petal-3"></div><div class="petal petal-4"></div><div class="petal petal-5"></div><div class="petal petal-6"></div><div class="flower-core"></div><div class="flower-shadow"></div><span>beauty begins within</span></div></div></section>
+
+    <section class="journey section-shell"><div class="section-head"><div><div class="section-kicker">Ваш визит</div><h2>Всё начинается <em>просто</em></h2></div><p>Короткий путь от первого интереса до встречи с мастером.</p></div><div class="journey-grid"><div><span>01</span><h3>Выберите услугу</h3><p>Найдите направление, которое хочется попробовать.</p></div><div><span>02</span><h3>Подберите время</h3><p>В рабочем сайте сюда можно подключить вашу систему записи.</p></div><div><span>03</span><h3>Приходите к нам</h3><p>Уделите себе время. Остальное возьмёт на себя команда.</p></div></div></section>
+
+    <section class="quote-band"><p>«Красота — это ощущение, к которому хочется возвращаться»</p><span>Идея для вашего будущего салона</span></section>
+
+    <section class="faq section-shell" id="faq"><div><div class="section-kicker">Вопросы</div><h2>Перед первым<br><em>визитом</em></h2><p>Тексты ниже — пример. Заменим их на ответы именно вашего салона.</p></div><div class="faq-list"><details><summary>Можно ли выбрать услугу вместе с мастером?<span>+</span></summary><p>Да. На рабочем сайте здесь можно описать, как проходит консультация в вашем салоне.</p></details><details><summary>Как записаться на удобное время?<span>+</span></summary><p>Кнопки записи в этом концепте открывают демонстрационное окно. В готовом сайте подключим вашу настоящую запись.</p></details><details><summary>Где находится студия?<span>+</span></summary><p>После согласования проекта здесь появятся адрес, карта, режим работы и способ связи.</p></details></div></section>
+
+    <section class="final-cta section-shell"><div class="final-visual"><span>✳</span><div class="cta-ring"></div></div><div class="final-copy"><div class="section-kicker">Следующий шаг</div><h2>Ваш салон<br>может выглядеть <em>так.</em></h2><p>Это демонстрационный дизайн. Название, тексты, услуги, фотографии и запись можно адаптировать под конкретный бизнес.</p><button class="button button-dark" data-book>Посмотреть запись</button></div></section>
+  </main>
+  <footer class="footer section-shell"><div><a class="brand" href="#top">MIRA<span class="brand-star">✳</span><small>beauty studio</small></a><p>Демонстрационный концепт сайта салона красоты.</p></div><div class="footer-links"><a href="#about">О студии</a><a href="#services">Услуги</a><a href="#space">Атмосфера</a><a href="#faq">Вопросы</a></div><div class="footer-note">Контакты и адрес появятся здесь после настройки сайта для реального салона.</div></footer>
+
+  <dialog id="book-dialog" class="book-dialog" aria-labelledby="dialog-title"><form method="dialog"><button class="close-dialog" value="close" aria-label="Закрыть">×</button></form><div class="dialog-kicker">Демонстрационная запись</div><h2 id="dialog-title">Выберите своё время</h2><p>Это пример интерфейса. Запись не отправляется — для настоящего салона подключим его способ бронирования.</p><label for="service-select">Услуга</label><select id="service-select"><option>Стрижка и укладка</option><option>Уход за лицом</option><option>Маникюр</option><option>Уход и восстановление</option></select><label for="date-select">Удобный день</label><input type="date" id="date-select"><button class="button button-lilac dialog-demo" type="button" id="demo-submit">Показать пример заявки</button><div id="demo-result" class="demo-result" role="status" hidden></div></dialog>
+</body>
+</html>
