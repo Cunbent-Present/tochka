@@ -717,6 +717,11 @@ const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') 
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
 let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
 let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
+const PRIVATE_KEY = 'tochka-admin-private-view';
+let privateView = (() => { try { return sessionStorage.getItem(PRIVATE_KEY) === '1'; } catch { return false; } })();
+let adminVerified = false;
+const privateModeOn = () => privateView && !!session && authOn();
+const privateModeMessage = () => toast('Сначала выключите скрытый режим в профиле', 2600);
 const isPro = () => !authOn() || !!(session && acct && (acct.admin || (acct.state !== 'expired' && acct.until > Date.now())));
 const fmtDate = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 // точная дата со временем: «6 ноября, 14:32»
@@ -740,6 +745,10 @@ async function api(path, { method = 'GET', body, token } = {}) {
   return data;
 }
 function saveSession(d) {
+  if (session?.user?.id !== d.user.id) {
+    adminVerified = false; privateView = false;
+    try { sessionStorage.removeItem(PRIVATE_KEY); } catch {}
+  }
   session = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000,
     user: { id: d.user.id, email: d.user.email, created_at: d.user.created_at } };
   store.set(SESSION_KEY, session);
@@ -776,6 +785,8 @@ async function loadStatus() {
     acct.email = session.user.email; acct.checked = now; acct.paid = paid > 0;
     // админ ли это (решает сервер по почте из токена; если функции на сервере нет — просто нет)
     try { acct.admin = (await api('/rest/v1/rpc/tochka_is_admin', { method: 'POST', body: {}, token: t })) === true; } catch { acct.admin = false; }
+    adminVerified = acct.admin;
+    if (!adminVerified) { privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {} }
     store.set(ACCT_KEY, acct);
   } catch (e) { console.warn('Статус подписки не обновился:', e.message); }   // без сети — живём по последнему известному статусу
   applyAccess();
@@ -800,6 +811,7 @@ function contactsError(e) {
 }
 function signOut(silent) {
   session = null; acct = null; store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
+  adminVerified = false; privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {}
   closePro(); closeAdmin(); admRows = []; applyAccess();
   if (!silent) toast('Вы вышли из аккаунта');
 }
@@ -894,6 +906,35 @@ $('#proTourNext').onclick = () => {
 };
 $('#proTour').addEventListener('click', e => { if (e.target.id === 'proTour') closeProTour(); });
 let wasPro = isPro();
+const privateIndicator = document.createElement('button');
+privateIndicator.id = 'privateIndicator'; privateIndicator.type = 'button';
+privateIndicator.className = 'workspace-icon workspace-privacy';
+privateIndicator.setAttribute('aria-label', 'Контакты скрыты — выключить скрытый режим');
+privateIndicator.title = 'Контакты скрыты — нажмите, чтобы показать';
+privateIndicator.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M9.9 5.3A10.6 10.6 0 0 1 12 5c5.2 0 9 7 9 7a17 17 0 0 1-3.1 3.7M6.1 6.1C3.9 8 3 12 3 12s3.8 7 9 7c1.2 0 2.3-.4 3.4-1"/><path d="M10.2 10.2a2.6 2.6 0 0 0 3.6 3.6"/></svg>';
+$('.workspace-actions').prepend(privateIndicator);
+function syncPrivateMode() {
+  if (!session && privateView) { privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {} }
+  const on = privateModeOn();
+  const changed = document.documentElement.classList.contains('admin-private-view') !== on;
+  document.documentElement.classList.toggle('admin-private-view', on);
+  $('#privateModeRow').hidden = !adminVerified;
+  $('#swPrivate').setAttribute('aria-checked', on);
+  privateIndicator.hidden = !on;
+  for (const id of ['#export', '#copyall', '#draftEmails', '#pExport', '#pTpl', '#nf', '#addp']) $(id).hidden = on;
+  $('#pAdm').hidden = on || !adminVerified;
+  if (changed) try { drawList(); drawNotes(); if (sel) select(sel, false, true); if (current === 'v-prof') renderProfile(); } catch { /* первый запуск ещё не завершён */ }
+}
+function setPrivateMode(on) {
+  if (on && (!adminVerified || !session || !authOn())) return;
+  privateView = on;
+  try { if (on) sessionStorage.setItem(PRIVATE_KEY, '1'); else sessionStorage.removeItem(PRIVATE_KEY); } catch {}
+  if (on) { closeMsg(); closeAdd(); stopAdd(); closeAdmin(); }
+  syncPrivateMode();
+  toast(on ? 'Контакты скрыты только на вашем экране' : 'Контакты снова видны', 2800);
+}
+$('#swPrivate').onclick = () => setPrivateMode(!privateModeOn());
+privateIndicator.onclick = () => setPrivateMode(false);
 function updateDraftEmailsAccess() {
   const button = $('#draftEmails');
   if (!button) return;
@@ -903,6 +944,7 @@ function updateDraftEmailsAccess() {
 function applyAccess() {
   document.documentElement.classList.toggle('is-pro', authOn() && isPro());
   updateDraftEmailsAccess();
+  syncPrivateMode();
   if (!authOn() || isPro()) hideGate();
   else if (session && gateStep) showGate('pay');   // вошёл, но пробный период уже закончился
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
@@ -1214,7 +1256,7 @@ function itemHtml({ p, d }) {
   return `<button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
     <span class="ic" style="--c:${CATS[p.cat].color}">${catIcon(p.cat)}</span>
     <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
-    <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
+    <div class="sub">${esc(CATS[p.cat].name)}${p.addr && !privateModeOn() ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
     <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Предположительно без сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
   </button>`;
 }
@@ -1344,6 +1386,7 @@ function socialSearchUrl(platform, p) {
   return 'https://yandex.ru/search/?text=' + encodeURIComponent(query);
 }
 function contactText(p) {
+  if (privateModeOn()) return `${p.name} (${CATS[p.cat].name})`;
   return [
     `${p.name} (${CATS[p.cat].name})`,
     (p.addr || p.city) && `Адрес: ${[p.city, p.addr].filter(Boolean).join(', ')}`,
@@ -1352,22 +1395,24 @@ function contactText(p) {
     p.tg && `Telegram: ${p.tg}`, p.vk && `VK: ${p.vk}`, p.inst && `Instagram: ${p.inst}`
   ].filter(Boolean).join('\n');
 }
-function select(id, fly) {
+function select(id, fly, skipMove = false) {
   const p = places.get(id); if (!p) return;
   sel = id; markSelected();
   const mobile = !isDesk();
   if (mobile && snap !== 1) setSnap(1);
   // заведение — в центре свободной части карты (над шторкой или левее панели)
   const off = mobile ? [0, -Math.round(SNAP[1] / 2) + 20] : [-Math.round((parseInt(getComputedStyle(document.documentElement).getPropertyValue('--panelw')) || 380) / 2) - 14, 0];
-  if (fly || map.getZoom() < 15.5) {
+  if (skipMove) { /* смена режима не должна двигать карту */ }
+  else if (fly || map.getZoom() < 15.5) {
     map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 16.5), offset: off, essential: true, duration: REDUCE ? 0 : 1200 });
   } else {
     map.easeTo({ center: [p.lon, p.lat], offset: off, duration: REDUCE ? 0 : 500 });
   }
   const c = CATS[p.cat];
+  const privateMode = privateModeOn();
   const row = (k, v, btn = '') => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span>${btn || '<span></span>'}</div>`;
-  const phones = p.phone ? p.phone.split(/[;,]\s*/).map(t => `<a class="tel" href="tel:${esc(t.replace(/[^\d+]/g, ''))}">${esc(t)}</a>`).join('<br>') : '';
-  const soc = [
+  const phones = !privateMode && p.phone ? p.phone.split(/[;,]\s*/).map(t => `<a class="tel" href="tel:${esc(t.replace(/[^\d+]/g, ''))}">${esc(t)}</a>`).join('<br>') : '';
+  const soc = privateMode ? '' : [
     p.tg && `<a href="${esc(handle(p.tg, 'https://t.me/'))}" target="_blank" rel="noopener">Telegram</a>`,
     p.vk && `<a href="${esc(handle(p.vk, 'https://vk.com/'))}" target="_blank" rel="noopener">VK</a>`,
     p.inst && `<a href="${esc(handle(p.inst, 'https://instagram.com/'))}" target="_blank" rel="noopener" title="В России Instagram открывается только через VPN и просит войти">Instagram</a>`
@@ -1377,14 +1422,15 @@ function select(id, fly) {
   const pro = isPro();
   // без Pro показываем только, какие контакты есть, а сами номера и ссылки — после входа
   const has = [p.phone && 'телефон', p.email && 'email', p.tg && 'Telegram', p.vk && 'VK', p.inst && 'Instagram'].filter(Boolean);
-  if (pro && p.locked) withContacts(p).then(() => { if (sel === p.id) select(p.id); }, contactsError);
-  const contacts = pro && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : pro ? `
+  if (pro && p.locked && !privateMode) withContacts(p).then(() => { if (sel === p.id) select(p.id, false, true); }, contactsError);
+  const contacts = privateMode ? row('Контакты', '<span class="small">Скрыты на вашем экране</span>')
+    : pro && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : pro ? `
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}`
     : row('Контакты', has.length ? `<span class="lockv"><span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>
       <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
-  const vkCandidates = Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
+  const vkCandidates = !privateMode && Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="cico">${catIcon(p.cat)}</span>${esc(c.name)}</span>
@@ -1392,32 +1438,32 @@ function select(id, fly) {
       <div class="card-btns"><button class="star" type="button" id="fav" aria-pressed="${isFav(p.id)}" aria-label="В избранное">${isFav(p.id) ? '★' : '☆'}</button>
       <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div></div>
     <div class="rows">
-      ${row('Адрес', addr ? esc(addr) : '<span class="small">не указан</span>')}
+      ${row('Адрес', privateMode ? '<span class="small">Скрыт на вашем экране</span>' : addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${contacts}
       ${vkCandidates}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
+      ${row('Сайт', privateMode && p.site ? '<span class="small">Ссылка скрыта на вашем экране</span>' : p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
       ${p.operator ? row('Компания', esc(p.operator)) : ''}
     </div>
-    <div class="acts">
+    ${privateMode ? '<div class="acts"><span class="small">Действия и способы связи скрыты. Выключите режим в профиле.</span></div>' : `<div class="acts">
       <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
       <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
       ${p.vk || p.inst ? `${!p.vk ? `<a class="btn" href="${esc(socialSearchUrl('vk.com', p))}" target="_blank" rel="noopener">Найти ВК</a>` : ''}${!p.inst ? `<a class="btn" href="${esc(socialSearchUrl('instagram.com', p))}" target="_blank" rel="noopener" title="Для просмотра Instagram в России может понадобиться VPN">Найти Instagram</a>` : ''}` : ''}
       ${pro && !p.locked ? `<button class="btn" type="button" data-copy="${esc(contactText(p))}">Копировать контакты</button>` : ''}
       <a class="btn" href="https://yandex.ru/maps/?rtext=~${p.lat},${p.lon}" target="_blank" rel="noopener">Маршрут</a>
-    </div>
+    </div>`}
     ${p.mine ? `<div class="mine-bar"><span>Это место добавили вы. Его видно только на этом устройстве.</span>
-      <div class="mine-acts"><button class="mini" type="button" id="medit">Изменить</button><button class="mini" type="button" id="mdel">Удалить</button>
-      <a class="mini" href="https://www.openstreetmap.org/edit#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">Добавить на OpenStreetMap для всех</a></div></div>`
-    : `<div class="src">Источник: OpenStreetMap${p.db ? ' (база Точки)' : ''}. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a></div>`}`;
+      ${privateMode ? '' : `<div class="mine-acts"><button class="mini" type="button" id="medit">Изменить</button><button class="mini" type="button" id="mdel">Удалить</button>
+      <a class="mini" href="https://www.openstreetmap.org/edit#map=19/${p.lat}/${p.lon}" target="_blank" rel="noopener">Добавить на OpenStreetMap для всех</a></div>`}</div>`
+    : `<div class="src">Источник: OpenStreetMap${p.db ? ' (база Точки)' : ''}${privateMode ? '' : `. Нашли ошибку? <a href="${p.osm}" target="_blank" rel="noopener">Исправить на карте OSM</a>`}</div>`}`;
   $('#card').scrollTop = 0;
   $('#cx').onclick = closeCard;
   $('#fav').onclick = () => { toggleFav(p.id); const on = isFav(p.id); $('#fav').textContent = on ? '★' : '☆'; $('#fav').setAttribute('aria-pressed', on); };
   // перезапуск «всплытия» карточки
   const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
-  $('#write').onclick = () => { if (!needPro()) withContacts(p).then(openMsg, contactsError); };
-  if (p.mine) {
+  if (!privateMode) $('#write').onclick = () => { if (!needPro()) withContacts(p).then(openMsg, contactsError); };
+  if (p.mine && !privateMode) {
     $('#medit').onclick = () => openAddForm(null, p);
     $('#mdel').onclick = e => {
       const b = e.currentTarget;
@@ -1425,7 +1471,7 @@ function select(id, fly) {
       else { b.dataset.sure = '1'; b.textContent = 'Точно удалить?'; b.classList.add('danger'); setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Удалить'; b.classList.remove('danger'); } }, 4000); }
     };
   }
-  $('#tonote').onclick = () => {
+  if (!privateMode) $('#tonote').onclick = () => {
     if (needPro()) return;
     withContacts(p).then(() => { notePlace = p; openNotes(); const t = $('#nt'); t.value = contactText(p) + '\n'; t.focus(); t.setSelectionRange(t.value.length, t.value.length); }, contactsError);
   };
@@ -1440,6 +1486,7 @@ function closeCard() {
 /* ---------- копирование и тост ---------- */
 document.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (b) copy(b.dataset.copy); });
 function copy(t, msg = 'Скопировано') {
+  if (privateModeOn()) return privateModeMessage();
   const fb = () => {
     const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0';
     document.body.appendChild(a); a.select();
@@ -1476,13 +1523,13 @@ function drawNotes() {
       </select></label>
       <span class="small">${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
       ${n.r ? `<div class="remline${isDue(n) ? ' due' : ''}">⏰ ${isDue(n) ? 'Пора написать · ' : 'Напомнить '}${fmtDay(n.r)}</div>` : ''}
-      <p>${esc(n.t)}</p>
+      <p>${privateModeOn() ? 'Содержимое заметки скрыто на вашем экране' : esc(n.t)}</p>
       <div class="nf">
-      <div>${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : ''}${n.mailDraft && n.s === 'new' ? `<button class="mini" type="button" data-draft="${n.d}">Открыть письмо</button>` : ''}</div>
+      <div>${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : ''}${!privateModeOn() && n.mailDraft && n.s === 'new' ? `<button class="mini" type="button" data-draft="${n.d}">Открыть письмо</button>` : ''}</div>
       <div><select class="mini rem" data-rem="${n.d}" aria-label="Напоминание">
         <option value="">⏰ Напомнить</option><option value="1">Завтра</option><option value="3">Через 3 дня</option><option value="7">Через неделю</option>${n.r ? '<option value="0">Убрать</option>' : ''}
       </select>
-      <button class="mini" type="button" data-copy="${esc(n.t)}">Копировать</button>
+      ${privateModeOn() ? '' : `<button class="mini" type="button" data-copy="${esc(n.t)}">Копировать</button>`}
       <button class="mini" type="button" data-del="${n.d}">Удалить</button></div></div></div>`).join('')
     : '<div class="hint">Пока пусто. Записывайте сюда телефоны, имена и кому написать. Или откройте заведение на карте и нажмите «В блокнот» — контакты подставятся сами.</div>';
   $('#nl').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
@@ -1523,15 +1570,17 @@ function drawNotes() {
 }
 $('#nf').addEventListener('submit', e => {
   e.preventDefault();
+  if (privateModeOn()) return privateModeMessage();
   const t = $('#nt').value.trim(); if (!t) { $('#nt').focus(); return; }
   if (needPro()) return;
   const n = { t, d: Date.now(), s: 'new' };
   if (notePlace) { n.pid = notePlace.id; n.lat = notePlace.lat; n.lon = notePlace.lon; n.place = notePlace; notePlace = null; }
   notes.unshift(n); saveNotes(); $('#nt').value = ''; drawNotes(); toast('Сохранено');
 });
-$('#copyall').onclick = () => notes.length ? copy(notes.map(n => n.t).join('\n\n———\n\n')) : toast('Блокнот пуст');
+$('#copyall').onclick = () => privateModeOn() ? privateModeMessage() : notes.length ? copy(notes.map(n => n.t).join('\n\n———\n\n')) : toast('Блокнот пуст');
 // Экспорт в таблицу: CSV для Excel (с BOM и «;», чтобы русский Excel открыл без кракозябр)
 $('#export').onclick = () => {
+  if (privateModeOn()) return privateModeMessage();
   if (needPro('export')) return;
   if (!notes.length) return toast('Блокнот пуст');
   const head = ['Дата', 'Статус', 'Заведение', 'Категория', 'Телефон', 'Адрес', 'Сайт', 'Потенциал', 'Напомнить', 'Заметка'];
@@ -1594,6 +1643,7 @@ function emailDraftFor(p, address) {
   return { address, subject, body };
 }
 $('#draftEmails').onclick = async () => {
+  if (privateModeOn()) return privateModeMessage();
   if (needPro()) return;
   const button = $('#draftEmails'); button.disabled = true; button.textContent = 'Подбираю…';
   try {
@@ -1614,6 +1664,7 @@ $('#draftEmails').onclick = async () => {
         s: 'new', pid: p.id, lat: p.lat, lon: p.lon, place: p,
         mailDraft: true, mailTo: mail.address, mailSubject: mail.subject, mailBody: mail.body };
     });
+    if (privateModeOn()) return;
     if (!drafts.length) return toast('У загруженных заведений пока нет доступных проверенных email.', 3500);
     notes.unshift(...drafts); saveNotes(); drawNotes();
     toast(`Подготовлено писем: ${drafts.length}. Проверьте каждое перед отправкой.`, 3600);
@@ -1627,6 +1678,7 @@ const waNumber = ph => {
   return d.length >= 11 ? d : '';
 };
 function openMsg(p) {
+  if (privateModeOn()) return privateModeMessage();
   msgPlace = p; logged = false;
   msgDraft = notes.find(n => n.pid === p.id && n.mailDraft && n.s === 'new') || null;
   const exists = notes.find(n => n.pid === p.id && n.s && n.s !== 'new');
@@ -1701,11 +1753,11 @@ $('#tplAdd').onclick = () => { tpls.push({ n: 'Мой шаблон', t: 'Здр�
 $('#tplReset').onclick = () => { tpls = DEFAULT_TPL.map(x => ({ ...x })); store.set(TPL_KEY, tpls); drawTplEditor(); toast('Стандартные шаблоны возвращены'); };
 $('#tplDone').onclick = () => { if (!msgPlace) { closeMsg(); renderProfile(); return; } $('#msTpl').hidden = true; $('#msSend').hidden = false; drawMsg(); };
 
-function openNotes() { go('v-crm'); requestAnimationFrame(() => $('#nf').scrollIntoView({ block: 'center', behavior: REDUCE ? 'auto' : 'smooth' })); }
+function openNotes() { if (privateModeOn()) return privateModeMessage(); go('v-crm'); requestAnimationFrame(() => $('#nf').scrollIntoView({ block: 'center', behavior: REDUCE ? 'auto' : 'smooth' })); }
 
 /* ---------- «Мои клиенты»: сводка, кому написать, воронка, неделя ---------- */
 const BAR = { new: 'var(--bar-new)', sent: 'var(--bar-sent)', reply: 'var(--bar-reply)', deal: 'var(--bar-deal)', ignore: 'var(--bar-ignore)', no: 'var(--bar-no)' };
-const noteName = n => (n.place && n.place.name) || (n.t || '').split('\n')[0].slice(0, 60) || 'Заметка';
+const noteName = n => (n.place && n.place.name) || (privateModeOn() ? 'Заметка' : (n.t || '').split('\n')[0].slice(0, 60)) || 'Заметка';
 function renderTodoBadge() { /* значок на вкладке обновляет drawNotes */ }
 function renderCrm() {
   const cnt = k => notes.filter(n => (n.s || 'new') === k).length;
@@ -1730,13 +1782,13 @@ function renderCrm() {
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   $('#todo').innerHTML = due.length ? due.map(n => `<div class="tcard" data-d="${n.d}">
       <div><div class="nm">${esc(noteName(n))}</div><div class="sb">${stName(n.s)} · ${n.r < today0.getTime() ? 'просрочено с ' + fmtDay(n.r) : 'сегодня'}</div></div>
-      <div class="ta">${n.place ? '<button class="btn pri" type="button" data-t="write">Написать</button>' : ''}
+      <div class="ta">${n.place && !privateModeOn() ? '<button class="btn pri" type="button" data-t="write">Написать</button>' : ''}
       <button class="btn" type="button" data-t="done" title="Отметить, что написали">Написал ✓</button>
       <button class="mini" type="button" data-t="later" title="Напомнить завтра">Завтра</button></div></div>`).join('')
     : `<p class="hint">${notes.length ? 'На сегодня всё. Отличная работа!' : 'Пока пусто. Откройте заведение на карте и нажмите «Написать» — оно появится здесь с напоминанием.'}</p>`;
   $('#todo').querySelectorAll('.tcard').forEach(card => card.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +card.dataset.d); if (!n) return;
-    if (b.dataset.t === 'write') { const p = n.place; if (p && !needPro()) { if (!places.has(p.id)) places.set(p.id, p); withContacts(places.get(p.id)).then(openMsg, contactsError); } return; }
+    if (b.dataset.t === 'write') { if (privateModeOn()) return privateModeMessage(); const p = n.place; if (p && !needPro()) { if (!places.has(p.id)) places.set(p.id, p); withContacts(places.get(p.id)).then(openMsg, contactsError); } return; }
     if (b.dataset.t === 'later') { n.r = dayAt(1); toast('Напомню завтра'); }
     if (b.dataset.t === 'done') {
       n.sentAt = Date.now();
@@ -1765,7 +1817,7 @@ function renderProfile() {
     : acct.state === 'trial' ? `Пробный период до ${fmtDateTime(acct.until)} · осталось ${leftText(acct.until)}` : 'Закончилась — продлите';
   $('#pAcc').hidden = !authOn();
   $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
-  $('#pAdm').hidden = !(authOn() && session && acct && acct.admin);
+  $('#pAdm').hidden = privateModeOn() || !adminVerified;
   document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
   $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);
   $('#swRem').setAttribute('aria-checked', store.get(REM_KEY, true));
@@ -1779,7 +1831,7 @@ $('#pTpl').onclick = () => { if (needPro('tpl')) return; msgPlace = null; $('#ms
 $('#pExport').onclick = () => $('#export').click();
 $('#pPro').onclick = () => openPro();
 $('#pAcc').onclick = () => openPro();
-$('#pAdm').onclick = () => openAdmin();
+$('#pAdm').onclick = () => { if (!privateModeOn() && adminVerified) openAdmin(); };
 $('#pRev').onclick = () => openReviews();
 document.addEventListener('click', e => { const b = e.target.closest('[data-pro]'); if (b && !needPro()) openPro(); });
 addEventListener('keydown', e => {

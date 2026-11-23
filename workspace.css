@@ -87,3 +87,5 @@
 /* Distinct silhouettes, a small inset and no heavy glossy treatment. */
 .cico .ci,.item .ic .ci{stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none;filter:none}.item .ic{border:1px solid color-mix(in srgb,var(--c) 20%,transparent);background:color-mix(in srgb,var(--c) 9%,var(--panel));box-shadow:inset 0 1px 0 #ffffff35,0 1px 0 color-mix(in srgb,var(--c) 18%,transparent);border-radius:11px}.item .ic .ci{width:23px;height:23px}.chip .cico{filter:none}.chip .ci{width:18px;height:18px}.chip{min-height:36px}.chips{scrollbar-width:thin}.membership-card{transition:background .15s}
 @media(max-width:760px){#theme{justify-content:flex-start;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}#theme button{min-height:35px;font-size:11px}.wordmark{font-size:28px}.wordmark .brand-o{width:.66em;height:.66em}}
+.workspace-privacy{display:grid;place-items:center;color:var(--accent);border:1px solid var(--accent);background:var(--soft)}
+.workspace-privacy svg{width:19px;height:19px}
