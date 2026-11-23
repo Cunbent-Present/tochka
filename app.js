@@ -984,7 +984,7 @@ function applyAccess() {
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
   // доступ изменился — открыть или спрятать контакты в открытой карточке
   if (wasPro !== isPro()) { wasPro = isPro(); try { if (sel) select(sel); } catch { /* карта ещё не готова */ } }
-  else if (sel) try { select(sel, false, true); } catch { /* карта ещё не готова */ }
+  else try { if (sel) select(sel, false, true); } catch { /* карта ещё не готова */ }
   if (authOn() && session && isPro()) setTimeout(startProTour, 500);
 }
 $('#gPrice').textContent = `${PLAN.price} ₽ в месяц`;
