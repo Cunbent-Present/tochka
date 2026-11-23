@@ -722,6 +722,7 @@ let privateView = (() => { try { return sessionStorage.getItem(PRIVATE_KEY) === 
 let adminVerified = false;
 const privateModeOn = () => privateView && !!session && authOn();
 const privateModeMessage = () => toast('Сначала выключите скрытый режим в профиле', 2600);
+const privateMask = (kind = 'contact') => `<span class="privacy-mask privacy-mask--${kind}" role="img" aria-label="Скрыто"></span>`;
 const isPro = () => !authOn() || !!(session && acct && (acct.admin || (acct.state !== 'expired' && acct.until > Date.now())));
 const fmtDate = t => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 // точная дата со временем: «6 ноября, 14:32»
@@ -929,7 +930,7 @@ function setPrivateMode(on) {
   if (on && (!adminVerified || !session || !authOn())) return;
   privateView = on;
   try { if (on) sessionStorage.setItem(PRIVATE_KEY, '1'); else sessionStorage.removeItem(PRIVATE_KEY); } catch {}
-  if (on) { closeMsg(); closeAdd(); stopAdd(); closeAdmin(); }
+  if (on) { closeMsg(); closeAdd(); stopAdd(); closeAdmin(); closePro(); }
   syncPrivateMode();
   toast(on ? 'Контакты скрыты только на вашем экране' : 'Контакты снова видны', 2800);
 }
@@ -1013,7 +1014,7 @@ function openPro() {
     const trialFrom = acct && acct.state === 'trial' ? acct.until - PLAN.trialDays * DAY : 0;
     box.innerHTML = `<b>${st === 'active' ? `Pro активен до ${fmtDateTime(acct.until)}` : st === 'trial' ? `Пробный период до ${fmtDateTime(acct.until)}` : 'Подписки нет'}</b>
       ${st === 'active' || st === 'trial' ? `<span class="small">Осталось: ${leftText(acct.until)}${trialFrom ? ` · выдан ${fmtDateTime(trialFrom)}` : ''}</span>` : ''}
-      <span class="small">Аккаунт: ${esc(session ? session.user.email : '')}. Подписка работает на всех устройствах — войдите с этой почтой на телефоне и на компьютере.</span>
+      <span class="small">Аккаунт: ${privateModeOn() ? privateMask('email') : esc(session ? session.user.email : '')}. Подписка работает на всех устройствах — войдите с этой почтой на телефоне и на компьютере.</span>
       <span class="small">Продление: ${PLAN.price} ₽ в месяц${PLAN.yookassa ? ' — через СБП, картой или переводом в Telegram' : `, оплата в Telegram @${PLAN.tg}`}. Оплаченный месяц прибавляется к текущему сроку.</span>`;
     const verb = st === 'active' ? 'Продлить' : 'Оплатить';
     acts.innerHTML = `${PLAN.yookassa ? `<button class="btn pri" type="button" id="accBuy">${verb} ${PLAN.price} ₽</button>` : ''}
@@ -1256,7 +1257,7 @@ function itemHtml({ p, d }) {
   return `<button type="button" class="item${p.id === sel ? ' sel' : ''}" data-id="${p.id}">
     <span class="ic" style="--c:${CATS[p.cat].color}">${catIcon(p.cat)}</span>
     <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
-    <div class="sub">${esc(CATS[p.cat].name)}${p.addr && !privateModeOn() ? ' · ' + esc(p.addr) : ''} · ${fmtDist(d)}</div>
+    <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + (privateModeOn() ? privateMask('address') : esc(p.addr)) : ''} · ${fmtDist(d)}</div>
     <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Предположительно без сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
   </button>`;
 }
@@ -1423,14 +1424,19 @@ function select(id, fly, skipMove = false) {
   // без Pro показываем только, какие контакты есть, а сами номера и ссылки — после входа
   const has = [p.phone && 'телефон', p.email && 'email', p.tg && 'Telegram', p.vk && 'VK', p.inst && 'Instagram'].filter(Boolean);
   if (pro && p.locked && !privateMode) withContacts(p).then(() => { if (sel === p.id) select(p.id, false, true); }, contactsError);
-  const contacts = privateMode ? row('Контакты', '<span class="small">Скрыты на вашем экране</span>')
+  const contacts = privateMode ? [
+      p.phone && row('Телефон', privateMask('phone')),
+      p.email && row('Email', privateMask('email')),
+      (p.tg || p.vk || p.inst) && row('Соцсети', privateMask('social')),
+      !has.length && row('Контакты', privateMask())
+    ].filter(Boolean).join('')
     : pro && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : pro ? `
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}`
     : row('Контакты', has.length ? `<span class="lockv"><span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>
       <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
-  const vkCandidates = !privateMode && Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
+  const vkCandidates = Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', privateMode ? privateMask('social') : `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
   $('#card').innerHTML = `
     <div class="card-h"><div>
       <span class="tag" style="color:${c.color}"><span class="cico">${catIcon(p.cat)}</span>${esc(c.name)}</span>
@@ -1438,15 +1444,15 @@ function select(id, fly, skipMove = false) {
       <div class="card-btns"><button class="star" type="button" id="fav" aria-pressed="${isFav(p.id)}" aria-label="В избранное">${isFav(p.id) ? '★' : '☆'}</button>
       <button class="x" type="button" id="cx" aria-label="Закрыть">×</button></div></div>
     <div class="rows">
-      ${row('Адрес', privateMode ? '<span class="small">Скрыт на вашем экране</span>' : addr ? esc(addr) : '<span class="small">не указан</span>')}
+      ${row('Адрес', privateMode && addr ? privateMask('address') : addr ? esc(addr) : '<span class="small">не указан</span>')}
       ${contacts}
       ${vkCandidates}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', privateMode && p.site ? '<span class="small">Ссылка скрыта на вашем экране</span>' : p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
+      ${row('Сайт', privateMode && p.site ? privateMask('site') : p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
-      ${p.operator ? row('Компания', esc(p.operator)) : ''}
+      ${p.operator ? row('Компания', privateMode ? privateMask('contact') : esc(p.operator)) : ''}
     </div>
-    ${privateMode ? '<div class="acts"><span class="small">Действия и способы связи скрыты. Выключите режим в профиле.</span></div>' : `<div class="acts">
+    ${privateMode ? '<div class="acts privacy-actions" aria-label="Действия скрыты"><span class="privacy-action"></span><span class="privacy-action"></span></div>' : `<div class="acts">
       <button class="btn pri" type="button" id="write">${pro ? '' : '🔒 '}Написать</button>
       <button class="btn" type="button" id="tonote">${pro ? '' : '🔒 '}В блокнот</button>
       ${p.vk || p.inst ? `${!p.vk ? `<a class="btn" href="${esc(socialSearchUrl('vk.com', p))}" target="_blank" rel="noopener">Найти ВК</a>` : ''}${!p.inst ? `<a class="btn" href="${esc(socialSearchUrl('instagram.com', p))}" target="_blank" rel="noopener" title="Для просмотра Instagram в России может понадобиться VPN">Найти Instagram</a>` : ''}` : ''}
@@ -1523,7 +1529,7 @@ function drawNotes() {
       </select></label>
       <span class="small">${new Date(n.d).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
       ${n.r ? `<div class="remline${isDue(n) ? ' due' : ''}">⏰ ${isDue(n) ? 'Пора написать · ' : 'Напомнить '}${fmtDay(n.r)}</div>` : ''}
-      <p>${privateModeOn() ? 'Содержимое заметки скрыто на вашем экране' : esc(n.t)}</p>
+      <p>${privateModeOn() ? privateMask('note') : esc(n.t)}</p>
       <div class="nf">
       <div>${n.lat != null ? `<button class="mini" type="button" data-go="${n.d}">На карте</button>` : ''}${!privateModeOn() && n.mailDraft && n.s === 'new' ? `<button class="mini" type="button" data-draft="${n.d}">Открыть письмо</button>` : ''}</div>
       <div><select class="mini rem" data-rem="${n.d}" aria-label="Напоминание">
@@ -1816,7 +1822,8 @@ function renderProfile() {
     : !acct ? '—' : acct.state === 'active' ? `Активна до ${fmtDateTime(acct.until)}`
     : acct.state === 'trial' ? `Пробный период до ${fmtDateTime(acct.until)} · осталось ${leftText(acct.until)}` : 'Закончилась — продлите';
   $('#pAcc').hidden = !authOn();
-  $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
+  if (privateModeOn()) $('#pAccSub').innerHTML = privateMask('email');
+  else $('#pAccSub').textContent = session ? session.user.email : 'Вход не выполнен';
   $('#pAdm').hidden = privateModeOn() || !adminVerified;
   document.querySelectorAll('#theme [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === themeMode));
   $('#sw3d').setAttribute('aria-checked', map.getPitch() > 5);

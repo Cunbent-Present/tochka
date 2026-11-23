@@ -9,7 +9,8 @@ function workspaceSync(){
  $('#workspaceProfile').textContent=initial;$('#profileAvatar').textContent=initial;$('#profileName').textContent=name;
  $('#workspaceSection').textContent=workspaceSectionNames[current]||'Точка';
  document.querySelectorAll('.view').forEach(view=>view.inert=view.id!==current);
- $('#profileAccess').textContent=session ? session.user.email : 'Профиль на этом устройстве';
+ if(privateModeOn())$('#profileAccess').innerHTML=privateMask('email');
+ else $('#profileAccess').textContent=session ? session.user.email : 'Профиль на этом устройстве';
  $('#workspaceSaved').textContent=Object.keys(favs).length;
  $('#workspaceSent').textContent=notes.filter(isContacted).length;
  $('#workspaceReplies').textContent=notes.filter(isAnswered).length;
