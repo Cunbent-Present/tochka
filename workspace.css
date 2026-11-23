@@ -92,3 +92,5 @@
 .privacy-mask{display:inline-block;width:9em;max-width:100%;height:.85em;vertical-align:-.05em;border-radius:3px;background:repeating-linear-gradient(90deg,currentColor 0 7px,transparent 7px 10px);color:var(--muted);opacity:.7;filter:blur(3px);pointer-events:none;user-select:none}
 .privacy-mask--email{width:13em}.privacy-mask--phone{width:10em}.privacy-mask--social{width:8em}.privacy-mask--address{width:12em}.privacy-mask--site{width:10em}.privacy-mask--note{width:min(100%,22em);height:1em}
 .privacy-actions{gap:12px}.privacy-action{display:inline-block;width:115px;max-width:40%;height:35px;border-radius:10px;background:var(--soft);filter:blur(4px);opacity:.8;pointer-events:none}
+
+.wordmark .brand-o-letter,.hello-mark .brand-o-letter{font-size:inherit;letter-spacing:inherit;display:inline-block;position:relative;line-height:1}.brand-o-letter::after{content:"";position:absolute;right:-.07em;top:.08em;width:.13em;height:.13em;border-radius:50%;background:var(--accent)}

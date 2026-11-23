@@ -31,12 +31,12 @@
 <body>
 <svg width="0" height="0" class="diamond-defs" aria-hidden="true"><defs><linearGradient id="diamond-body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f1f8ff"/><stop offset=".45" stop-color="#a6bfff"/><stop offset="1" stop-color="#7750d2"/></linearGradient><linearGradient id="diamond-side" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#a69aff"/><stop offset="1" stop-color="#443e89"/></linearGradient><symbol id="tochka-diamond" viewBox="0 0 120 110"><path d="M15 39 37 10 84 10 107 39 62 99z" fill="#463a8c" transform="translate(1 5)"/><path d="M15 39 37 10H84L107 39 61 96z" fill="url(#diamond-body)" stroke="#e4e7ff" stroke-width="1" stroke-linejoin="round"/><path d="m15 39 22-29 10 29z" fill="#a9bfff"/><path d="m37 10 24 3-14 26z" fill="#edf6ff"/><path d="m61 13 23-3-10 29H47z" fill="#d8eaff"/><path d="m84 10 23 29H74z" fill="#a6a7f1"/><path d="m15 39 32 0 14 57z" fill="#859df0"/><path d="m47 39 27 0-13 57z" fill="#dce8ff"/><path d="m74 39 33 0-46 57z" fill="url(#diamond-side)"/><path d="M17 39h88M37 11l10 28 14 55 13-55 10-28M47 39l14-26 13 26" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.1"/><path d="m28 27 10-13h17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/></symbol></defs></svg>
 <div class="app" id="app">
-<header class="workspace-header"><div class="workspace-brand"><span class="wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div><span id="workspaceSection" class="workspace-section">Карта клиентов</span><div class="workspace-actions"><button id="workspaceTheme" class="workspace-icon" type="button" aria-label="Переключить тему">◐</button><button id="workspaceProfile" class="workspace-avatar" type="button" aria-label="Открыть личный кабинет">А</button></div></header>
+<header class="workspace-header"><div class="workspace-brand"><span class="wordmark" role="img" aria-label="Точка">Т<span class="brand-o-letter">о</span>чка</span></div><span id="workspaceSection" class="workspace-section">Карта клиентов</span><div class="workspace-actions"><button id="workspaceTheme" class="workspace-icon" type="button" aria-label="Переключить тему">◐</button><button id="workspaceProfile" class="workspace-avatar" type="button" aria-label="Открыть личный кабинет">А</button></div></header>
 
   <!-- вкладки: снизу на телефоне, слева на ПК -->
   <nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы">
     <span class="tabpill" id="tabpill"></span>
-    <div class="rail-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span><span class="pro-mark sm"><svg class="diamond" viewBox="0 0 120 110" aria-hidden="true"><use href="#tochka-diamond"/></svg>PRO</span></div>
+    <div class="rail-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<span class="brand-o-letter">о</span>чка</span><span class="pro-mark sm"><svg class="diamond" viewBox="0 0 120 110" aria-hidden="true"><use href="#tochka-diamond"/></svg>PRO</span></div>
     <button class="tab" role="tab" aria-selected="true" data-v="v-map" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>Карта</button>
     <button class="tab" role="tab" aria-selected="false" data-v="v-list" type="button">
@@ -239,9 +239,9 @@
 <!-- первый запуск: «Начать» и пара вопросов, без регистрации -->
 <div class="gate" id="hello" hidden>
   <div class="gate-card" role="dialog" aria-labelledby="helloTitle" aria-modal="true">
-    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div>
+    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<span class="brand-o-letter">о</span>чка</span></div>
     <div class="g-step" data-hs="0">
-      <div class="hello-mark" aria-hidden="true">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</div>
+      <div class="hello-mark" aria-hidden="true">Т<span class="brand-o-letter">о</span>чка</div>
       <h2 id="helloTitle">Найдите клиентов на сайты</h2>
       <p class="g-lead">Карта салонов, барбершопов и маникюра по всей России. Можно найти тех, кто <b>предположительно без сайта</b> — им и можно его предложить.</p>
       <button class="btn pri big" type="button" id="hStart">Начать</button>
@@ -267,7 +267,7 @@
 <div class="gate" id="gate" hidden>
   <div class="gate-card" role="dialog" aria-labelledby="gateTitle" aria-modal="true">
     <button class="x g-x" type="button" id="gX" aria-label="Закрыть">×</button>
-    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<svg class="brand-o" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.13 9.51A8.5 8.5 0 1 1 14.49 3.87"/><circle cx="18" cy="6" r="2.8"/></svg>чка</span></div>
+    <div class="gate-brand"><span class="logo wordmark" role="img" aria-label="Точка">Т<span class="brand-o-letter">о</span>чка</span></div>
     <!-- шаг 1: почта -->
     <form id="gEmail" class="g-step" novalidate>
       <h2 id="gateTitle">Контакты и шаблоны — в Pro</h2>
