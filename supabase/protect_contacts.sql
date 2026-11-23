@@ -1,5 +1,5 @@
 -- Защита базы салонов: телефоны, почта и соцсети заведений хранятся здесь, а не в открытых файлах data/*.json.
--- Отдаются только тем, у кого есть доступ: оплаченная подписка, пробный день после регистрации или админ.
+-- Отдаются только тем, у кого есть доступ: оплаченная подписка, первые 3 дня после регистрации или админ.
 -- Запустить один раз: Supabase → SQL Editor → вставить весь файл → Run. Повторный запуск ничего не ломает.
 -- Пишет в таблицу только робот сборки базы (секретным ключом из GitHub Secrets), пользователи — только читают.
 
@@ -15,7 +15,7 @@ create table if not exists public.place_contacts (
 
 alter table public.place_contacts enable row level security;
 
--- Есть ли у вошедшего пользователя доступ к контактам. Пробный период — 1 день (как PLAN.trialDays в app.js).
+-- Есть ли у вошедшего пользователя доступ к контактам. Пробный период — 3 дня (как PLAN.trialDays в app.js).
 create or replace function public.tochka_has_access()
 returns boolean
 language sql
@@ -29,7 +29,7 @@ as $$
       from auth.users u
       left join public.subscriptions s on s.user_id = u.id
       where u.id = auth.uid()
-        and (s.paid_until > now() or coalesce(s.created_at, u.created_at) + interval '1 day' > now())
+        and (s.paid_until > now() or coalesce(s.created_at, u.created_at) + interval '3 days' > now())
     )
     or coalesce(public.tochka_is_admin(), false)
   );

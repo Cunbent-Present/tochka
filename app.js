@@ -117,13 +117,21 @@ function parseEl(el) {
   return p;
 }
 
+function relockProtectedPlace(p) {
+  if (!p?.serverContactsBeforeReveal) return;
+  Object.assign(p, p.serverContactsBeforeReveal);
+  p.locked = true;
+  delete p.serverContactsBeforeReveal;
+  delete p.freeRevealedFor;
+}
+
 const places = new Map();
 const loadedCells = new Set();
 (function restoreCache() {
   const c = store.get(CACHE_KEY, null);
   if (!c || Date.now() - c.t > CACHE_DAYS * 864e5) return;
   c.cells.forEach(k => loadedCells.add(k));
-  c.places.forEach(p => places.set(p.id, p));
+  c.places.forEach(p => { relockProtectedPlace(p); places.set(p.id, p); });
 })();
 let saveTimer;
 function saveCache() {
@@ -581,7 +589,7 @@ $('#cres').onclick = e => { const b = e.target.closest('[data-lat]'); if (b) fly
 /* ---------- избранное ---------- */
 const FAV_KEY = 'tochka-favs';
 let favs = store.get(FAV_KEY, {});
-for (const p of Object.values(favs)) if (!places.has(p.id)) places.set(p.id, p);
+for (const p of Object.values(favs)) { relockProtectedPlace(p); if (!places.has(p.id)) places.set(p.id, p); }
 const isFav = id => !!favs[id];
 function toggleFav(id) {
   const p = places.get(id); if (!p) return;
@@ -689,7 +697,7 @@ function deleteMine(id) {
   places.delete(id); closeCard(); applyFilter(); toast('Заведение удалено');
 }
 
-/* ---------- Аккаунт: карта без входа, Pro — 1 день бесплатно, потом подписка 290 ₽/мес ----------
+/* ---------- Аккаунт: карта без входа, Pro — 3 дня бесплатно, потом подписка 290 ₽/мес ----------
    Без входа открыта карта, список и фильтры. Контакты, «Написать», шаблоны, блокнот, воронка и экспорт —
    только в Pro: при нажатии на них needPro() показывает вход по почте или оплату.
    Сервер — Supabase: вход по коду из письма, дата регистрации и оплаченный срок хранятся там,
@@ -711,12 +719,13 @@ try {
 } catch { /* без хранилища — просто без режима проверки */ }
 // yookassa: true — показывать оплату СБП/картой (когда ЮKassa одобрит магазин и в Supabase будут функции pay и
 // yookassa-webhook, см. ОПЛАТА.md). Оплата переводом через Telegram остаётся в любом случае.
-const PLAN = { price: 290, trialDays: 1, tg: 'cunbent', yookassa: false };
+const PLAN = { price: 290, trialDays: 3, tg: 'cunbent', yookassa: false };
 const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
 const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') === '1'; } catch { return false; } })();
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
 let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
 let acct = store.get(ACCT_KEY, null);          // { state: 'trial' | 'active' | 'expired', until, email, checked }
+let freeContactsLeft = null, freeContactIds = new Set();
 const PRIVATE_KEY = 'tochka-admin-private-view';
 let privateView = (() => { try { return sessionStorage.getItem(PRIVATE_KEY) === '1'; } catch { return false; } })();
 let adminVerified = false;
@@ -747,6 +756,8 @@ async function api(path, { method = 'GET', body, token } = {}) {
 }
 function saveSession(d) {
   if (session?.user?.id !== d.user.id) {
+    for (const p of places.values()) relockProtectedPlace(p);
+    for (const p of Object.values(favs)) relockProtectedPlace(p);
     adminVerified = false; privateView = false;
     try { sessionStorage.removeItem(PRIVATE_KEY); } catch {}
   }
@@ -787,6 +798,16 @@ async function loadStatus() {
     // админ ли это (решает сервер по почте из токена; если функции на сервере нет — просто нет)
     try { acct.admin = (await api('/rest/v1/rpc/tochka_is_admin', { method: 'POST', body: {}, token: t })) === true; } catch { acct.admin = false; }
     adminVerified = acct.admin;
+    if (acct.state === 'expired' && !acct.admin) {
+      try {
+        const [left, ids] = await Promise.all([
+          api('/rest/v1/rpc/tochka_free_contacts_remaining', { method: 'POST', body: {}, token: t }),
+          api('/rest/v1/rpc/tochka_free_contact_ids', { method: 'POST', body: {}, token: t })
+        ]);
+        freeContactsLeft = Number.isInteger(left) ? left : null;
+        freeContactIds = new Set(Array.isArray(ids) ? ids.map(x => x.place_id) : []);
+      } catch { freeContactsLeft = null; freeContactIds.clear(); }
+    } else { freeContactsLeft = null; freeContactIds.clear(); }
     if (!adminVerified) { privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {} }
     store.set(ACCT_KEY, acct);
   } catch (e) { console.warn('Статус подписки не обновился:', e.message); }   // без сети — живём по последнему известному статусу
@@ -797,8 +818,16 @@ const contactsLoading = new Map();
 function withContacts(p) {
   if (!p.locked) return Promise.resolve(p);
   if (!contactsLoading.has(p.id)) contactsLoading.set(p.id, (async () => {
-    const rows = await api(`/rest/v1/place_contacts?select=phone,email,tg,vk,inst&id=eq.${encodeURIComponent(p.id)}`, { token: await token() });
+    const free = authOn() && !isPro() && !!session;
+    const rows = free
+      ? await api('/rest/v1/rpc/tochka_reveal_free_contact', { method: 'POST', body: { p_place_id: p.id }, token: await token() })
+      : await api(`/rest/v1/place_contacts?select=phone,email,tg,vk,inst&id=eq.${encodeURIComponent(p.id)}`, { token: await token() });
     if (!rows || !rows[0]) throw new Error('NO_ACCESS');   // строка есть у каждого «*», пусто — сервер не дал доступ
+    if (!p.serverContactsBeforeReveal) p.serverContactsBeforeReveal = Object.fromEntries(['phone', 'email', 'tg', 'vk', 'inst'].map(k => [k, p[k]]));
+    if (free) {
+      p.freeRevealedFor = session.user.id;
+      if (!freeContactIds.has(p.id)) { freeContactIds.add(p.id); freeContactsLeft = Math.max(0, (freeContactsLeft ?? 1) - 1); }
+    }
     for (const k of ['phone', 'email', 'tg', 'vk', 'inst']) p[k] = rows[0][k] || '';
     p.email = cleanPlaceEmail(p.email);
     delete p.locked;
@@ -807,11 +836,14 @@ function withContacts(p) {
   return contactsLoading.get(p.id);
 }
 function contactsError(e) {
-  if (/NO_ACCESS/.test(e.message)) { loadStatus(); toast('Нет доступа к контактам — проверьте подписку', 3000); }
+  if (/FREE_CONTACT_LIMIT/.test(e.message)) { freeContactsLeft = 0; toast('Три бесплатных контакта использованы. Для новых нужна подписка.', 4000); if (sel) select(sel, false, true); }
+  else if (/NO_ACCESS/.test(e.message)) { loadStatus(); toast('Нет доступа к контактам — проверьте подписку', 3000); }
   else toast('Не удалось загрузить контакты. Проверьте интернет.', 3000);
 }
 function signOut(silent) {
-  session = null; acct = null; store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
+  for (const p of places.values()) relockProtectedPlace(p);
+  for (const p of Object.values(favs)) relockProtectedPlace(p);
+  session = null; acct = null; freeContactsLeft = null; freeContactIds.clear(); store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
   adminVerified = false; privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {}
   closePro(); closeAdmin(); admRows = []; applyAccess();
   if (!silent) toast('Вы вышли из аккаунта');
@@ -922,7 +954,7 @@ function syncPrivateMode() {
   $('#privateModeRow').hidden = !adminVerified;
   $('#swPrivate').setAttribute('aria-checked', on);
   privateIndicator.hidden = !on;
-  for (const id of ['#export', '#copyall', '#draftEmails', '#pExport', '#pTpl', '#nf', '#addp']) $(id).hidden = on;
+  for (const id of ['#export', '#copyall', '#draftEmails', '#pExport', '#pBackup', '#pRestore', '#pTpl', '#nf', '#addp']) $(id).hidden = on;
   $('#pAdm').hidden = on || !adminVerified;
   if (changed) try { drawList(); drawNotes(); if (sel) select(sel, false, true); if (current === 'v-prof') renderProfile(); } catch { /* первый запуск ещё не завершён */ }
 }
@@ -943,6 +975,7 @@ function updateDraftEmailsAccess() {
   button.title = isPro() ? 'Подготовить до 10 персональных черновиков' : 'Доступно с Точкой Pro';
 }
 function applyAccess() {
+  if (wasPro && !isPro()) { for (const p of places.values()) relockProtectedPlace(p); for (const p of Object.values(favs)) relockProtectedPlace(p); }
   document.documentElement.classList.toggle('is-pro', authOn() && isPro());
   updateDraftEmailsAccess();
   syncPrivateMode();
@@ -951,6 +984,7 @@ function applyAccess() {
   try { if (current === 'v-crm') renderCrm(); if (current === 'v-prof') renderProfile(); } catch { /* вкладки ещё не готовы — при запуске */ }
   // доступ изменился — открыть или спрятать контакты в открытой карточке
   if (wasPro !== isPro()) { wasPro = isPro(); try { if (sel) select(sel); } catch { /* карта ещё не готова */ } }
+  else if (sel) try { select(sel, false, true); } catch { /* карта ещё не готова */ }
   if (authOn() && session && isPro()) setTimeout(startProTour, 500);
 }
 $('#gPrice').textContent = `${PLAN.price} ₽ в месяц`;
@@ -1420,7 +1454,7 @@ function select(id, fly, skipMove = false) {
   ].filter(Boolean).join(' · ');
   const addr = [p.city, p.addr].filter(Boolean).join(', ');
   const l = lead(p);
-  const pro = isPro();
+  const pro = isPro(), canSeeContacts = pro || (session && p.freeRevealedFor === session.user.id);
   // без Pro показываем только, какие контакты есть, а сами номера и ссылки — после входа
   const has = [p.phone && 'телефон', p.email && 'email', p.tg && 'Telegram', p.vk && 'VK', p.inst && 'Instagram'].filter(Boolean);
   if (pro && p.locked && !privateMode) withContacts(p).then(() => { if (sel === p.id) select(p.id, false, true); }, contactsError);
@@ -1430,12 +1464,14 @@ function select(id, fly, skipMove = false) {
       (p.tg || p.vk || p.inst) && row('Соцсети', privateMask('social')),
       !has.length && row('Контакты', privateMask())
     ].filter(Boolean).join('')
-    : pro && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : pro ? `
+    : canSeeContacts && p.locked ? row('Контакты', '<span class="small">Загружаю…</span>') : canSeeContacts ? `
       ${p.phone ? row('Телефон', phones, `<button class="mini" type="button" data-copy="${esc(p.phone)}">Копировать</button>`) : row('Телефон', '<span class="small">не указан</span>')}
       ${p.email ? row('Email', esc(p.email), `<button class="mini" type="button" data-copy="${esc(p.email)}">Копировать</button>`) : ''}
       ${soc ? row('Соцсети', soc) : ''}`
     : row('Контакты', has.length ? `<span class="lockv"><span>Есть: ${has.join(', ')}</span><span class="blur">+7 900 000-00-00</span>
-      <button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button></span>` : '<span class="small">не указаны</span>');
+      ${session && freeContactsLeft !== null && (freeContactsLeft > 0 || freeContactIds.has(p.id)) && p.locked
+        ? `<button class="mini" type="button" id="freeContact">Открыть бесплатно${freeContactIds.has(p.id) ? '' : ` · осталось ${freeContactsLeft}`}</button>`
+        : '<button class="mini" type="button" data-pro="contacts">🔒 Открыть контакты</button>'}</span>` : '<span class="small">не указаны</span>');
   const vkCandidates = Array.isArray(p.vkCandidates) && p.vkCandidates.length ? row('Возможный ВК', privateMode ? privateMask('social') : `${p.vkCandidates.slice(0, 5).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name || 'Сообщество')}</a>`).join(' · ')}<small>Проверьте вручную: поиск мог найти одноимённую группу</small>`) : '';
   $('#card').innerHTML = `
     <div class="card-h"><div>
@@ -1469,6 +1505,8 @@ function select(id, fly, skipMove = false) {
   // перезапуск «всплытия» карточки
   const cardEl = $('#card'); cardEl.classList.remove('pop'); void cardEl.offsetWidth; cardEl.classList.add('pop');
   if (!privateMode) $('#write').onclick = () => { if (!needPro()) withContacts(p).then(openMsg, contactsError); };
+  if (!privateMode && $('#freeContact')) $('#freeContact').onclick = () => withContacts(p)
+    .then(() => { if (sel === p.id) select(p.id, false, true); }, contactsError);
   if (p.mine && !privateMode) {
     $('#medit').onclick = () => openAddForm(null, p);
     $('#mdel').onclick = e => {
@@ -1836,6 +1874,59 @@ $('#sw3d').onclick = () => { $('#tilt').click(); setTimeout(renderProfile, 950);
 $('#swRem').onclick = () => { const on = !store.get(REM_KEY, true); store.set(REM_KEY, on); $('#swRem').setAttribute('aria-checked', on); toast(on ? 'Напоминания включены' : 'Напоминания выключены'); };
 $('#pTpl').onclick = () => { if (needPro('tpl')) return; msgPlace = null; $('#msTitle').textContent = 'Мои шаблоны и подпись'; $('#msSend').hidden = true; $('#msTpl').hidden = false; drawTplEditor(); $('#ms').hidden = false; };
 $('#pExport').onclick = () => $('#export').click();
+// Перенос личных данных между устройствами. Токены входа и кэш базы в файл не попадают.
+const BACKUP_KEYS = ['tochka-notes', 'tochka-favs', 'tochka-mine', 'tochka-tpl', 'tochka-sign',
+  'tochka-workspace-person', 'tochka-theme', 'tochka-remind', 'tochka-sort'];
+const validBackupValue = (key, value) => {
+  if (['tochka-notes', 'tochka-tpl'].includes(key)) return Array.isArray(value) && value.length <= 10000;
+  if (['tochka-favs', 'tochka-mine', 'tochka-workspace-person'].includes(key)) return value && typeof value === 'object' && !Array.isArray(value);
+  if (key === 'tochka-sign') return typeof value === 'string';
+  if (key === 'tochka-theme') return ['light', 'dark', 'navy', 'auto'].includes(value);
+  if (key === 'tochka-remind') return typeof value === 'boolean';
+  if (key === 'tochka-sort') return ['near', 'name', 'lead'].includes(value);
+  return false;
+};
+$('#pBackup').onclick = () => {
+  if (privateModeOn()) return privateModeMessage();
+  try {
+    const data = {};
+    for (const key of BACKUP_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) {
+        const value = key === 'tochka-theme' ? raw : JSON.parse(raw);
+        if (validBackupValue(key, value)) data[key] = value;
+      }
+    }
+    const file = new Blob([JSON.stringify({ kind: 'tochka-backup', version: 1, createdAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(file);
+    link.download = `tochka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+    toast('Резервная копия скачана. Храните файл приватно.', 3500);
+  } catch { toast('Не удалось создать копию. Проверьте память браузера.', 3500); }
+};
+$('#pRestore').onclick = () => { if (privateModeOn()) return privateModeMessage(); $('#backupFile').click(); };
+$('#backupFile').onchange = async event => {
+  const file = event.target.files?.[0]; event.target.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 2 * 1024 * 1024) throw new Error('Файл слишком большой (максимум 2 МБ).');
+    const backup = JSON.parse(await file.text());
+    if (backup?.kind !== 'tochka-backup' || backup.version !== 1 || !backup.data || typeof backup.data !== 'object' || Array.isArray(backup.data)) throw new Error('Это не резервная копия Точки.');
+    const entries = Object.entries(backup.data);
+    if (!entries.length || entries.some(([key, value]) => !BACKUP_KEYS.includes(key) || !validBackupValue(key, value))) throw new Error('В файле есть неизвестные или повреждённые данные.');
+    if (!confirm('Восстановить данные из файла? Текущие заметки, избранное и настройки на этом устройстве будут заменены.')) return;
+    const previous = new Map(entries.map(([key]) => [key, localStorage.getItem(key)]));
+    try {
+      for (const [key, value] of entries) localStorage.setItem(key, key === 'tochka-theme' ? value : JSON.stringify(value));
+    } catch (e) {
+      for (const [key, value] of previous) { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
+      throw e;
+    }
+    location.reload();
+  } catch (e) { toast(e.message || 'Не удалось восстановить данные.', 4000); }
+};
 $('#pPro').onclick = () => openPro();
 $('#pAcc').onclick = () => openPro();
 $('#pAdm').onclick = () => { if (!privateModeOn() && adminVerified) openAdmin(); };
