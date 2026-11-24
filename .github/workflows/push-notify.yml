@@ -1,0 +1,41 @@
+name: Новые заведения — push
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Обновить базу салонов"]
+    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/push/**'
+      - '.github/workflows/push-notify.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scripts/push/package-lock.json
+      - name: Установить библиотеку Web Push
+        run: npm ci --prefix scripts/push
+      - name: Проверить выбор новых заведений
+        run: npm test --prefix scripts/push
+      - name: Найти новые заведения и отправить уведомления
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/push/notify.mjs

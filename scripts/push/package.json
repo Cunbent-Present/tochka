@@ -1,0 +1,11 @@
+{
+  "name": "tochka-push",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "web-push": "3.6.7"
+  },
+  "scripts": {
+    "test": "node --test logic.test.mjs"
+  }
+}

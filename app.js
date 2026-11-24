@@ -764,6 +764,7 @@ function saveSession(d) {
   session = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000,
     user: { id: d.user.id, email: d.user.email, created_at: d.user.created_at } };
   store.set(SESSION_KEY, session);
+  dispatchEvent(new Event('tochka-auth-changed'));
 }
 async function token() {
   if (!session) return null;
@@ -841,6 +842,7 @@ function contactsError(e) {
   else toast('Не удалось загрузить контакты. Проверьте интернет.', 3000);
 }
 function signOut(silent) {
+  dispatchEvent(new CustomEvent('tochka-sign-out', { detail: { token: session?.access_token } }));
   for (const p of places.values()) relockProtectedPlace(p);
   for (const p of Object.values(favs)) relockProtectedPlace(p);
   session = null; acct = null; freeContactsLeft = null; freeContactIds.clear(); store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);

@@ -2,3 +2,4 @@
 *.pem
 keys_log.csv
 __pycache__/
+scripts/push/node_modules/

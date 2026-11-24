@@ -1,7 +1,7 @@
 // Кэширует оболочку приложения, чтобы оно быстро открывалось и ставилось на телефон.
-const CACHE = 'tochka-v34';
+const CACHE = 'tochka-v35';
 const SHELL = [
-  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js?v=20261123-2', 'workspace.css?v=20261123-type1', 'workspace.js', 'completeness.js', 'diamond-3d.js', 'golos-cyrillic.woff2', 'golos-latin.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js?v=20261124-push', 'workspace.css?v=20261123-type1', 'workspace.js', 'push.js?v=20261124', 'completeness.js', 'diamond-3d.js', 'golos-cyrillic.woff2', 'golos-latin.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
@@ -25,4 +25,32 @@ self.addEventListener('fetch', e => {
       return r;
     }).catch(() => caches.match(e.request))
   );
+});
+
+self.addEventListener('push', event => {
+  let message = {};
+  try { message = event.data?.json() || {}; } catch { /* показываем общий текст */ }
+  const city = typeof message.city === 'string' ? message.city : '';
+  event.waitUntil(self.registration.showNotification(message.title || 'Новые заведения в «Точке»', {
+    body: message.body || 'Откройте карту и посмотрите новые заведения без указанного сайта.',
+    icon: new URL('icons/icon-192.png', self.registration.scope).href,
+    badge: new URL('icons/icon-192.png', self.registration.scope).href,
+    tag: `tochka-new-${city}`,
+    data: { url: new URL(`./?pushCity=${encodeURIComponent(city)}`, self.registration.scope).href }
+  }));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = event.notification.data?.url || self.registration.scope;
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const windowClient of windows) {
+      if (new URL(windowClient.url).origin === self.location.origin && new URL(windowClient.url).pathname.startsWith(new URL(self.registration.scope).pathname)) {
+        await windowClient.navigate(target);
+        return windowClient.focus();
+      }
+    }
+    return clients.openWindow(target);
+  })());
 });
