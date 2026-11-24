@@ -65,7 +65,8 @@ async function refreshPushUi() {
     pushButton.textContent = pushActive ? 'Выключить уведомления' : 'Включить уведомления';
     pushButton.disabled = false;
   } catch (error) {
-    pushState.textContent = error.message;
+    pushState.textContent = /^(Для выбранного города|Отправка уведомлений)/.test(error.message)
+      ? error.message : 'Уведомления пока настраиваются. Попробуйте позже.';
     pushButton.textContent = 'Настройка недоступна';
   }
 }

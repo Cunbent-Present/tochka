@@ -10,6 +10,8 @@ on:
     paths:
       - 'scripts/push/**'
       - '.github/workflows/push-notify.yml'
+  schedule:
+    - cron: '17 11 * * *'  # резервная проверка в 14:17 по Москве
 
 permissions:
   contents: read
