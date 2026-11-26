@@ -1541,7 +1541,17 @@ function copy(t, msg = 'Скопировано') {
   };
   if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast(msg), fb); else fb();
 }
-let tt; function toast(m, ms = 1700) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), ms); }
+let tt; function toast(m, ms = 1700, undo) {
+  const t = $('#toast'); t.textContent = m; t.setAttribute('role', 'status');
+  if (undo) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'toast-undo'; button.textContent = 'Отменить';
+    button.onclick = () => { clearTimeout(tt); t.classList.remove('on'); t.replaceChildren(); undo(); };
+    t.append(' ', button);
+  }
+  t.classList.add('on'); clearTimeout(tt);
+  tt = setTimeout(() => { t.classList.remove('on'); t.querySelector('.toast-undo')?.remove(); }, ms);
+}
 function setStatus(m) { const s = $('#status'); s.textContent = m; s.hidden = !m; }
 
 /* ---------- блокнот ---------- */
@@ -1830,12 +1840,22 @@ function renderCrm() {
       <div><div class="nm">${esc(noteName(n))}</div><div class="sb">${stName(n.s)} · ${n.r < today0.getTime() ? 'просрочено с ' + fmtDay(n.r) : 'сегодня'}</div></div>
       <div class="ta">${n.place && !privateModeOn() ? '<button class="btn pri" type="button" data-t="write">Написать</button>' : ''}
       <button class="btn" type="button" data-t="done" title="Отметить, что написали">Написал ✓</button>
-      <button class="mini" type="button" data-t="later" title="Напомнить завтра">Завтра</button></div></div>`).join('')
+      <button class="mini" type="button" data-t="later" title="Напомнить завтра">Завтра</button>
+      <button class="btn decline" type="button" data-t="skip" title="Убрать напоминание, сохранив клиента в блокноте">Не буду писать</button></div></div>`).join('')
     : `<p class="hint">${notes.length ? 'На сегодня всё. Отличная работа!' : 'Пока пусто. Откройте заведение на карте и нажмите «Написать» — оно появится здесь с напоминанием.'}</p>`;
   $('#todo').querySelectorAll('.tcard').forEach(card => card.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
     const n = notes.find(x => x.d === +card.dataset.d); if (!n) return;
     if (b.dataset.t === 'write') { if (privateModeOn()) return privateModeMessage(); const p = n.place; if (p && !needPro()) { if (!places.has(p.id)) places.set(p.id, p); withContacts(places.get(p.id)).then(openMsg, contactsError); } return; }
     if (b.dataset.t === 'later') { n.r = dayAt(1); toast('Напомню завтра'); }
+    if (b.dataset.t === 'skip') {
+      const reminder = n.r, status = n.s;
+      delete n.r;
+      toast(`«${noteName(n)}»: напоминание убрано, клиент сохранён`, 8000, () => {
+        const currentNote = notes.find(x => x.d === n.d);
+        if (!currentNote || currentNote.r || currentNote.s !== status) return toast('Клиент уже изменён — напоминание можно задать в блокноте');
+        currentNote.r = reminder; saveNotes(); drawNotes(); toast('Клиент возвращён в список');
+      });
+    }
     if (b.dataset.t === 'done') {
       n.sentAt = Date.now();
       if (!n.s || n.s === 'new') n.s = 'sent';
