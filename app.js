@@ -261,7 +261,10 @@ function applyChecks(m) {
 }
 
 let loading = false, pending = false;
+const firstRunPending = () => !store.get('tochka-hello', 0) && !store.get('tochka-session', null);
 async function loadView() {
+  // Приветственный экран должен открываться сразу, без разбора городской базы под ним.
+  if (firstRunPending()) return;
   if (loading) { pending = true; return; }
   loading = true;
   try {
@@ -272,7 +275,9 @@ async function loadView() {
       const fresh = x => !x.loadedOk && !(x.failedAt > Date.now() - 60000);
       const need = dbRegionsNear(c, map.getBounds()).filter(fresh);
       const city = dbCityAt(c.lat, c.lng);
-      if (city && fresh(city) && !dbCovers(Math.floor(c.lat / CELL), Math.floor(c.lng / CELL))) need.push(city);
+      // Старый городской файл дублирует новые региональные файлы. Не грузим оба набора сразу.
+      if (city && fresh(city) && !dbCovers(Math.floor(c.lat / CELL), Math.floor(c.lng / CELL))
+        && !need.some(r => r.cells?.includes(cellKey(c.lat, c.lng)))) need.push(city);
       if (need.length) {
         setStatus(`Загружаю базу: ${need.slice(0, 2).map(x => x.name).join(', ')}${need.length > 2 ? ' и ещё ' + (need.length - 2) : ''}…`);
         await Promise.all(need.map(loadDb));
@@ -317,13 +322,14 @@ if (typeof maplibregl.supported === 'function' && !maplibregl.supported()) {
   document.getElementById('map').innerHTML = '<div class="empty">Ваш браузер не поддерживает 3D-карту (WebGL). Обновите браузер или откройте Точку в Chrome.</div>';
 }
 const saved = store.get(VIEW_KEY, null);
+const mobileMap = matchMedia('(max-width: 760px)').matches;
 const map = new maplibregl.Map({
   container: 'map',
   style: DARK ? STYLE_DARK : STYLE_LIGHT,
   center: saved ? [saved.lng, saved.lat] : [37.6173, 55.7558],
-  zoom: saved ? saved.zoom : 14,
-  pitch: saved ? saved.pitch : 52,
-  bearing: saved ? saved.bearing : -14,
+  zoom: mobileMap ? Math.min(saved?.zoom ?? 11.5, 13) : saved ? saved.zoom : 14,
+  pitch: mobileMap ? 0 : saved ? saved.pitch : 52,
+  bearing: mobileMap ? 0 : saved ? saved.bearing : -14,
   maxPitch: 65,
   attributionControl: { compact: true }
 });
@@ -486,7 +492,13 @@ const geo = list => ({
   type: 'FeatureCollection',
   features: list.map(p => ({ type: 'Feature', properties: { id: p.id, cat: p.cat, name: p.name }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } }))
 });
-function pushData() { const s = map.getSource('places'); if (s) s.setData(geo(visible)); }
+function pushData() {
+  const s = map.getSource('places'); if (!s) return;
+  const b = map.getBounds(), latPad = (b.getNorth() - b.getSouth()) / 2, lonPad = (b.getEast() - b.getWest()) / 2;
+  // В MapLibre передаём метки рядом с экраном, а не десятки тысяч точек всего региона.
+  s.setData(geo(visible.filter(p => p.lat >= b.getSouth() - latPad && p.lat <= b.getNorth() + latPad
+    && p.lon >= b.getWest() - lonPad && p.lon <= b.getEast() + lonPad)));
+}
 let bouncedId = '';
 function markSelected() {
   if (!map.getLayer('selected')) return;
@@ -519,7 +531,7 @@ map.on('moveend', () => {
   mt = setTimeout(() => {
     const c = map.getCenter();
     store.set(VIEW_KEY, { lng: c.lng, lat: c.lat, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() });
-    loadView(); drawList(); updateCity(); syncTilt();
+    loadView(); pushData(); drawList(); updateCity(); syncTilt();
   }, 350);
 });
 
@@ -2047,8 +2059,8 @@ $('#hGo').onclick = () => {
   if (ci > 0) catChips[ci].click();
   if ($('#hNoSite').checked !== noSite) chips.querySelector('.nosite').click();
   if (hCity >= 0) { const [, la, lo] = CITIES[hCity]; flyToCity(la, lo); }
-  else if (hCity === -1) $('#loc').click();
-  else openSheet();
+  else if (hCity === -1) { $('#loc').click(); loadView(); }
+  else { openSheet(); loadView(); }
 };
 if (!store.get(HELLO_KEY, 0) && !session) $('#hello').hidden = false;
 
