@@ -53,6 +53,13 @@
   <!-- КАРТА -->
   <section class="view" id="v-map" aria-label="Карта">
     <div id="map"></div>
+    <div class="map-loading" id="mapLoading" role="status" aria-live="polite">
+      <div class="map-loading-card">
+        <span class="map-loading-spinner" aria-hidden="true"></span>
+        <strong id="mapLoadingTitle">Загружаем карту</strong>
+        <span id="mapLoadingText">Подождите несколько секунд</span>
+      </div>
+    </div>
     <div class="topbar">
       <div class="bar">
         <label class="search" for="q">
@@ -324,7 +331,7 @@
 <div class="toast" id="toast"></div><section class="workspace-showcase" id="workspaceShowcasePage" hidden aria-label="Точка на устройствах"><div class="showcase-toolbar"><button class="btn" type="button" id="workspaceShowcaseClose">← Вернуться в кабинет</button><span class="small">Интерактивный макет · вымышленные данные</span></div><iframe id="workspaceShowcaseFrame" title="Точка на телефоне и компьютере" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></section>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js?v=20261127-mapfallback1"></script>
+<script src="app.js?v=20261127-loading1"></script>
 <script src="workspace.js"></script>
 <script src="buttons.js?v=1"></script>
 <script src="push.js?v=20261127-guide"></script>

@@ -266,7 +266,17 @@ function applyChecks(m) {
   }
 }
 
-let loading = false, pending = false;
+let loading = false, pending = false, firstDataReady = false, mapFailure = false;
+function updateMapLoading() {
+  const box = $('#mapLoading');
+  if (!mapFailure && mapLoaded && firstDataReady) { box.hidden = true; return; }
+  box.hidden = false;
+  box.classList.toggle('error', mapFailure);
+  $('#mapLoadingTitle').textContent = mapFailure ? 'Карта пока недоступна'
+    : mapLoaded ? 'Загружаем заведения' : usingRaster ? 'Подключаем запасную карту' : 'Загружаем карту';
+  $('#mapLoadingText').textContent = mapFailure ? 'Откройте вкладку «Список» внизу'
+    : mapLoaded ? 'Скоро появятся точки рядом с вами' : 'Подождите несколько секунд';
+}
 const firstRunPending = () => !store.get('tochka-hello', 0) && !store.get('tochka-session', null);
 async function loadView() {
   // Приветственный экран должен открываться сразу, без разбора городской базы под ним.
@@ -318,6 +328,8 @@ async function loadView() {
     setStatus('Не удалось загрузить данные. Проверьте интернет и подвигайте карту.');
   } finally {
     loading = false;
+    firstDataReady = true;
+    updateMapLoading();
     if (document.querySelector('.item.skel')) drawList();   // заготовки строк — заменить на итог загрузки
     if (pending) { pending = false; loadView(); }
   }
@@ -339,11 +351,13 @@ const map = new maplibregl.Map({
   maxPitch: 65,
   attributionControl: { compact: true }
 });
-let styleLoaded = false, mapLoaded = false, usingRaster = false, mapErrorCount = 0;
+let styleLoaded = false, mapLoaded = false, usingRaster = false, mapErrorCount = 0, rasterErrorCount = 0;
 function useRasterFallback() {
   if (usingRaster) return;
   usingRaster = true;
+  rasterErrorCount = 0;
   styleLoaded = false;
+  updateMapLoading();
   const credit = document.createElement('a');
   credit.href = 'https://www.openstreetmap.org/copyright';
   credit.textContent = '© OpenStreetMap contributors';
@@ -357,7 +371,7 @@ function useRasterFallback() {
 map.on('error', e => {
   console.warn(e && e.error);
   if (!usingRaster && (!mapLoaded || !styleLoaded || ++mapErrorCount >= 3)) { useRasterFallback(); return; }
-  if (usingRaster && !mapLoaded) setStatus('Карта недоступна. Откройте список заведений.');
+  if (usingRaster && ++rasterErrorCount >= 3) { mapFailure = true; updateMapLoading(); }
 });
 
 // Иконки категорий: контуры 24×24 — и для меток на карте (canvas, Path2D), и для фильтров и карточек (SVG)
@@ -510,10 +524,11 @@ function bootMapView() {
   mapBooted = true;
   loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); resizeMapViewport();
 }
-map.on('load', () => { mapLoaded = true; bootMapView(); if (usingRaster) setStatus(''); });
+map.on('load', () => { mapLoaded = true; if (rasterErrorCount < 3) mapFailure = false; bootMapView(); updateMapLoading(); if (usingRaster) setStatus(''); });
 // Список должен работать, даже когда картографический сервер долго не отвечает.
 setTimeout(bootMapView, 1200);
 setTimeout(() => { if (!mapLoaded) useRasterFallback(); }, 5000);
+setTimeout(() => { if (!mapLoaded) { mapFailure = true; updateMapLoading(); } }, 14000);
 addEventListener('pageshow', resizeMapViewport);
 addEventListener('orientationchange', resizeMapViewport);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) resizeMapViewport(); });

@@ -106,6 +106,18 @@ a:hover > .dl-ico .dl-tray,a:focus-visible > .dl-ico .dl-tray{animation-duration
 /* ---------- карта ---------- */
 #map{position:absolute;inset:0;background:var(--bg)}
 .maplibregl-ctrl-attrib{font-size:10px}
+.map-loading{position:absolute;z-index:5;inset:0;display:grid;place-items:center;padding:100px 0 120px;
+  pointer-events:none;background:var(--bg);color:var(--fg)}
+.map-loading[hidden]{display:none}
+.map-loading-card{width:min(260px,calc(100% - 120px));display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:20px 16px;text-align:center;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:var(--deep)}
+.map-loading strong{font-family:var(--f-display);font-size:16px;line-height:1.2}
+.map-loading-card span:last-child{font-size:12px;line-height:1.4;color:var(--muted)}
+.map-loading-spinner{width:32px;height:32px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:map-loading-turn .8s linear infinite}
+.map-loading.error .map-loading-spinner{display:none}
+@keyframes map-loading-turn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.map-loading-spinner{animation:none}}
+@media (min-width:761px){.map-loading{padding:110px calc(var(--panelw) + 14px) 20px 0}}
 .topbar{position:absolute;z-index:6;display:grid;gap:8px;top:calc(10px + env(safe-area-inset-top,0px));
   left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));pointer-events:none}
 .topbar > *{pointer-events:auto}
