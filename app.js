@@ -36,6 +36,12 @@ const VIEW_KEY = 'tochka-view';
 const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
 const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
+const STYLE_RASTER = {
+  version: 8,
+  sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256,
+    attribution: '© OpenStreetMap contributors' } },
+  layers: [{ id: 'osm-raster', type: 'raster', source: 'osm' }]
+};
 const THEME_KEY = 'tochka-theme';
 const sysDark = matchMedia('(prefers-color-scheme: dark)');
 // по умолчанию светлая тема (как у карт); «Авто» — только если человек сам её выбрал в Профиле
@@ -333,11 +339,25 @@ const map = new maplibregl.Map({
   maxPitch: 65,
   attributionControl: { compact: true }
 });
-let styleLoaded = false, triedFallback = false;
+let styleLoaded = false, mapLoaded = false, usingRaster = false, mapErrorCount = 0;
+function useRasterFallback() {
+  if (usingRaster) return;
+  usingRaster = true;
+  styleLoaded = false;
+  const credit = document.createElement('a');
+  credit.href = 'https://www.openstreetmap.org/copyright';
+  credit.textContent = '© OpenStreetMap contributors';
+  credit.target = '_blank';
+  credit.rel = 'noopener';
+  credit.style.cssText = 'position:absolute;z-index:5;right:8px;bottom:124px;padding:3px 6px;border-radius:5px;background:#fff;color:#253047;font:11px sans-serif;text-decoration:none';
+  map.getContainer().append(credit);
+  map.setStyle(STYLE_RASTER, { diff: false });
+  map.resize();
+}
 map.on('error', e => {
-  if (!styleLoaded && DARK && !triedFallback) { triedFallback = true; map.setStyle(STYLE_LIGHT, { diff: false }); return; }
-  if (!styleLoaded) setStatus('Не удалось загрузить карту. Проверьте интернет.');
   console.warn(e && e.error);
+  if (!usingRaster && (!mapLoaded || !styleLoaded || ++mapErrorCount >= 3)) { useRasterFallback(); return; }
+  if (usingRaster && !mapLoaded) setStatus('Карта недоступна. Откройте список заведений.');
 });
 
 // Иконки категорий: контуры 24×24 — и для меток на карте (canvas, Path2D), и для фильтров и карточек (SVG)
@@ -473,7 +493,8 @@ function setTheme(mode) {
 function restyleMap() {
   const d = computeDark();
   if (d === DARK) return;
-  DARK = d; styleLoaded = false; triedFallback = false;
+  DARK = d; styleLoaded = false; mapErrorCount = 0;
+  if (usingRaster) return;
   map.setStyle(DARK ? STYLE_DARK : STYLE_LIGHT, { diff: false });   // слои меток добавятся заново в style.load
 }
 { const onSys = () => { if (themeMode === 'auto') restyleMap(); };   // старые Safari знают только addListener
@@ -483,7 +504,16 @@ function resizeMapViewport() {
   requestAnimationFrame(() => map.resize());
   setTimeout(() => map.resize(), 180);
 }
-map.on('load', () => { loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); resizeMapViewport(); });
+let mapBooted = false;
+function bootMapView() {
+  if (mapBooted) return;
+  mapBooted = true;
+  loadView(); updateCity(); drawList(); measureDrawer(); setSnap(snap, false); movePill(); resizeMapViewport();
+}
+map.on('load', () => { mapLoaded = true; bootMapView(); if (usingRaster) setStatus(''); });
+// Список должен работать, даже когда картографический сервер долго не отвечает.
+setTimeout(bootMapView, 1200);
+setTimeout(() => { if (!mapLoaded) useRasterFallback(); }, 5000);
 addEventListener('pageshow', resizeMapViewport);
 addEventListener('orientationchange', resizeMapViewport);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) resizeMapViewport(); });
