@@ -11,11 +11,13 @@
 Ссылку из ВК на Taplink, YCLIENTS, DIKIDI и т. п. считаем онлайн-записью, а не сайтом.
 
 Результат: data/checks/<регион>.json — {id: [итог, ссылка, дата, как проверяли]}
-  итог: "own" — нашли свой сайт, "rec" — только онлайн-запись, "none" — своего сайта не нашли.
+  итог: "own" — нашли свой сайт, "rec" — онлайн-запись, "none" — сайт не нашли,
+        "unknown" — поиск не завершён из-за недоступности источников.
   как: "d" — домен, "v" — ВКонтакте.
 Точка подмешивает это в карточки и в оценку клиента. Данные © участники OpenStreetMap, лицензия ODbL.
 """
 import json
+import html
 import os
 import re
 import socket
@@ -39,19 +41,20 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://aficnrxwryphxdgjmyfx.supa
 VK_KEY = os.environ.get("VK_SERVICE_KEY", "").strip()
 
 SITE_TAGS = ("website", "contact:website", "url")
-# соцсети, онлайн-запись и каталоги — это не свой сайт (как SOCIAL_HOSTS в app.js)
+# соцсети, онлайн-запись и каталоги — это не свой сайт (как в site-info.js)
 SOCIAL = re.compile(r"(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|instagram\.com|t\.me|telegram\.me|wa\.me|ok\.ru|youtube\.com|"
                     r"tiktok\.com|facebook\.com|2gis\.ru|2gis\.biz|clients\.site|business\.site|yandex\.ru|avito\.ru|zoon\.ru|flamp\.ru)$", re.I)
 # 2gis.biz, clients.site, business.site — бесплатные визитки 2ГИС, Яндекс Бизнеса и Google: не свой сайт, живость не проверяем
 BOOKING = re.compile(r"(^|\.)(taplink\.(cc|ws|at|ru)|yclients\.com|dikidi\.(net|ru|app)|linktr\.ee|booksy\.com|sonline\.su|"
                      r"easyweek\.(io|ru)|arnica\.pro|beauty\.dikidi\.net|n\d+\.yclients\.com|bio\.link|mssg\.me|hipolink\.(me|net))$", re.I)
 PARKED = re.compile(r"домен\s+(продается|продаётся|не\s+делегирован|зарегистрирован)|domain\s+(is\s+)?(for\s+sale|parked)|"
-                    r"this\s+domain|sedoparking|parking|reg\.ru/domain|купить\s+домен|сайт\s+в\s+разработке", re.I)
+                    r"sedoparking|domain\s+parking|reg\.ru/domain|купить\s+домен|сайт\s+в\s+разработке", re.I)
 # слова, которые есть почти в каждом названии — по ним домен не угадать
 GENERIC = {"барбершоп", "барбер", "салон", "красоты", "студия", "студии", "маникюр", "маникюра", "ногтей", "парикмахерская",
            "парикмахер", "бьюти", "beauty", "barbershop", "barber", "salon", "studio", "studia", "nail", "nails", "bar", "spa",
            "спа", "тату", "tattoo", "массаж", "massage", "brow", "brows", "lash", "lashes", "бровей", "ресниц", "и", "the", "by",
            "центр", "мастерская", "кабинет", "room", "house", "club", "клуб", "shop", "lab", "лаб", "lounge", "point"}
+GENERIC.update({"кафе", "кофейня", "ресторан", "пекарня", "цветы", "зоомагазин", "ветклиника", "coffee", "cafe", "restaurant", "bakery"})
 TR = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
               ["a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "h",
                "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya"]))
@@ -101,6 +104,20 @@ def domain_candidates(name):
 
 BEAUTY = re.compile(r"стрижк|барбер|маникюр|педикюр|ногт|парикмахер|окрашиван|салон|бров|ресниц|массаж|спа\b|тату|"
                     r"космет|запис|barber|haircut|manicure|nail|beauty|salon|lash|brow|massage|tattoo|spa\b", re.I)
+BUSINESS = {
+    "cafe": r"кофе|кофейн|кафе|меню|coffee|cafe|menu",
+    "restaurant": r"ресторан|меню|кухн|restaurant|menu",
+    "bakery": r"пекар|выпечк|хлеб|булоч|bakery|bread",
+    "florist": r"цвет|букет|флорист|flower|florist",
+    "pet": r"зоотовар|зоомагазин|корм|питомц|pet",
+    "veterinary": r"ветеринар|ветклиник|животн|veterinar",
+}
+
+
+def business_pattern(tags):
+    tags = tags or {}
+    key = tags.get("amenity") or tags.get("shop")
+    return re.compile(BUSINESS[key], re.I) if key in BUSINESS else BEAUTY
 
 
 def stem(s):
@@ -114,15 +131,17 @@ def town_of(tags, region_town):
     return stem(tags.get("addr:city", "")) or region_town
 
 
-def page_matches(text, name, phone, town):
-    """Свой сайт заведения, если на странице есть его телефон — или название, слова про красоту и город."""
-    t = text.lower().replace("ё", "е")
-    digits = re.sub(r"\D", "", phone or "")[-7:]
-    if len(digits) == 7 and digits in re.sub(r"\D", "", t):
+def page_matches(text, name, phone, town, tags=None):
+    """Совпадение полного телефона или названия, сферы бизнеса и города."""
+    t = html.unescape(text).lower().replace("ё", "е")
+    phones = {re.sub(r"\D", "", p)[-10:] for p in re.split(r"[;,]", phone or "")}
+    phones = {p for p in phones if len(p) == 10}
+    page_phones = {re.sub(r"\D", "", p)[-10:] for p in re.findall(r"\+?\d[\d\s().-]{8,22}\d", t)}
+    if phones & page_phones:
         return True
     words = name_words(name)
     has_name = bool(words) and (" ".join(words) in t or "".join(translit(w) for w in words) in re.sub(r"[^a-z0-9]", "", t))
-    return has_name and bool(BEAUTY.search(t)) and bool(town) and town in t
+    return has_name and bool(business_pattern(tags).search(t)) and bool(town) and town in t
 
 
 def fetch_page(url, timeout=8):
@@ -134,18 +153,32 @@ def fetch_page(url, timeout=8):
     return r.geturl(), raw.decode("utf-8", errors="ignore")
 
 
-def check_domain(name, phone, town):
-    """Ищет свой сайт по названию. Возвращает адрес или ''."""
-    for dom in domain_candidates(name):
+def check_domain(name, phone, town, tags=None, detailed=False):
+    """Сетевые ошибки сохраняем отдельно от завершённого поиска без совпадений."""
+    domains = domain_candidates(name)
+    completed = 0
+    for dom in domains:
         for scheme in ("https", "http"):
             try:
                 final, text = fetch_page(f"{scheme}://{dom}/")
+            except urllib.error.HTTPError as e:
+                if e.code in (404, 410):
+                    completed += 1
+                    break
+                continue
+            except urllib.error.URLError as e:
+                reason = getattr(e, "reason", None)
+                if isinstance(reason, socket.gaierror) and reason.errno == socket.EAI_NONAME:
+                    completed += 1
+                    break
+                continue
             except Exception:
                 continue
-            if text and not PARKED.search(text[:20000]) and kind_of(final) == "own" and page_matches(text, name, phone, town):
-                return final
+            completed += 1
+            if text and not PARKED.search(text[:20000]) and kind_of(final) == "own" and page_matches(text, name, phone, town, tags):
+                return {"url": final, "complete": True} if detailed else final
             break   # домен ответил, но это не их сайт — http уже не пробуем
-    return ""
+    return {"url": "", "complete": bool(domains) and completed == len(domains)} if detailed else ""
 
 
 TAPLINK = re.compile(r"(^|\.)taplink\.(cc|at|ws|ru)$", re.I)
@@ -154,7 +187,7 @@ TAPLINK = re.compile(r"(^|\.)taplink\.(cc|at|ws|ru)$", re.I)
 def link_alive(url):
     """Открывается ли указанный у заведения сайт или Taplink.
     True — да, False — точно нет (домена не существует, 404, припаркован, Taplink кинул на свою главную),
-    None — не понять (сервер не ответил вовремя) — такие не помечаем, чтобы не ошибиться."""
+    None — не понять (сервер не ответил вовремя); сохраняем как unknown."""
     for attempt in range(3):   # сервер не успел ответить — пробуем ещё, с паузой
         try:
             final, text = fetch_page(url, timeout=15)
@@ -162,7 +195,8 @@ def link_alive(url):
         except urllib.error.HTTPError as e:
             return False if e.code in (404, 410) else None
         except urllib.error.URLError as e:
-            if isinstance(getattr(e, "reason", None), socket.gaierror):
+            reason = getattr(e, "reason", None)
+            if isinstance(reason, socket.gaierror) and reason.errno == socket.EAI_NONAME:
                 return False
         except Exception:
             pass
@@ -297,16 +331,24 @@ def main():
         checks = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
         rows = json.load(open(os.path.join(DATA, fname), encoding="utf-8"))
         region_town = stem(regions.get(slug, ""))
-        links = checks.setdefault("_links", {})   # {id: ["ok" | "dead", дата]} — открывается ли указанный сайт или Taplink
+        links = checks.setdefault("_links", {})   # {id: ["ok" | "dead" | "unknown", дата, проверенный URL]}
         vk_candidates = checks.setdefault("_vk_candidates", {})  # {id: {d, items}} — возможные сообщества, не подтверждённые совпадения
         todo, link_todo = [], []
+        tags_by_id = {}
         for pid, _lat, _lon, t in rows:
+            tags_by_id[pid] = t
             site = re.split(r"\s*;\s*", next((t[k] for k in SITE_TAGS if t.get(k)), ""))[0]   # несколько через «;» — первый
-            if site and kind_of(site) in ("own", "rec") and not (pid in links and links[pid][1] > stale):
+            old = checks.get(pid)
+            # Проверяем также сайты, ранее найденные роботом, а не только исходные ссылки OSM.
+            if kind_of(site) != "own" and old and old[0] in ("own", "rec") and old[1]:
+                site = old[1]
+            site_url = site if re.match(r"^https?://", site, re.I) else "https://" + site
+            previous = links.get(pid, [])
+            recent = len(previous) >= 3 and previous[2] == site_url and previous[1] > stale and previous[0] != "unknown"
+            if site and kind_of(site) in ("own", "rec") and not recent:
                 link_todo.append((pid, site if re.match(r"^https?://", site, re.I) else "https://" + site))
             if site and kind_of(site) == "own":
                 continue          # свой сайт уже указан в OSM
-            old = checks.get(pid)
             if old and old[2] > stale:
                 continue          # проверяли недавно
             phone = (contacts.get(pid) or ("", ""))[0] or t.get("phone") or t.get("contact:phone") or ""
@@ -320,14 +362,14 @@ def main():
         if link_todo:
             with ThreadPoolExecutor(max_workers=6) as pool:   # Taplink не любит много запросов сразу
                 alive = list(pool.map(lambda x: link_alive(x[1]), link_todo))
-            for (pid, _), ok in zip(link_todo, alive):
-                if ok is not None:
-                    links[pid] = ["ok" if ok else "dead", today]
-                    dead += not ok
+            for (pid, checked_url), ok in zip(link_todo, alive):
+                links[pid] = ["unknown" if ok is None else "ok" if ok else "dead", today, checked_url]
+                dead += ok is False
             print(f"  мёртвых ссылок: {dead}", flush=True)
 
         # 1) ВКонтакте: поле «Сайт» у известных сообществ
         by_vk = {}
+        sites = {}
         names = {pid: vk_screen_name(vk[pid]) for pid, *_ in todo if pid in vk}
         names = {pid: n for pid, n in names.items() if n}
         if names:
@@ -365,14 +407,19 @@ def main():
         # 2) домен по названию — параллельно, у каждого сайта свой сервер
         rest = [x for x in todo if x[0] not in by_vk or by_vk[x[0]][0] != "own"]
         with ThreadPoolExecutor(max_workers=24) as pool:
-            urls = list(pool.map(lambda x: check_domain(x[1], x[2], x[3]), rest))
-        for (pid, name, *_), url in zip(rest, urls):
+            results = list(pool.map(lambda x: check_domain(x[1], x[2], x[3], tags_by_id[x[0]], detailed=True), rest))
+        for (pid, name, *_), result in zip(rest, results):
+            url = result["url"]
             if url:
                 checks[pid] = ["own", url, today, "d"]
+                links[pid] = ["ok", today, url]
             elif pid in by_vk:
                 checks[pid] = by_vk[pid]
             elif domain_candidates(name) or pid in names:
-                checks[pid] = ["none", "", today, "dv" if pid in names else "d"]
+                vk_checked = pid in names and names[pid] in sites
+                complete = (not domain_candidates(name) or result["complete"]) and (pid not in names or vk_checked)
+                method = ("dv" if domain_candidates(name) else "v") if vk_checked else "d"
+                checks[pid] = ["none" if complete else "unknown", "", today, method]
             # слишком общее название без ВК — проверить нечем, ничего не пишем
         for pid, v in by_vk.items():
             if v[0] == "own":

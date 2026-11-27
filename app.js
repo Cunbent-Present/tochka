@@ -116,7 +116,7 @@ function parseEl(el) {
     email: t.email === '*' || t['contact:email'] === '*' ? '*' : cleanPlaceEmail([t.email, t['contact:email']].filter(Boolean).join(';')),
     hours: t.opening_hours || '',
     vk: t['contact:vk'] || '', tg: t['contact:telegram'] || '', inst: t['contact:instagram'] || '',
-    operator: t.operator || ''
+    operator: t.operator || '', brandSite: t['brand:website'] || '', operatorSite: t['operator:website'] || ''
   };
   // «*» в своей базе — контакт есть, но лежит на сервере и придёт только с Pro (withContacts)
   if ([p.phone, p.email, p.vk, p.tg, p.inst].includes('*')) p.locked = true;
@@ -234,34 +234,50 @@ function loadDb(c) {
       c.loadedOk = true;
       // проверка сайтов роботом — для регионов, если уже есть; без неё всё работает как раньше
       if (c.cells) fetch(`data/checks/${c.slug}.json`, { cache: 'no-cache' })
-        .then(r => r.ok ? r.json() : null).then(m => { if (m) { applyChecks(m); applyFilter(); } }).catch(() => {});
+        .then(r => r.ok ? r.json() : null).then(m => { if (m) { applyChecks(m); applyFilter(); if (sel) select(sel, false, true); } }).catch(() => {});
     })
     .catch(() => { c.failedAt = Date.now(); dbLoading.delete(c.slug); });
   dbLoading.set(c.slug, pr);
   return pr;
 }
 const loadCityDb = loadDb;
-// scripts/check_sites.py: own — нашли свой сайт, rec — только онлайн-запись, none — проверили и сайт не нашли
-const CHECK_HOW = { d: 'по названию', v: 'во ВКонтакте', dv: 'по названию и во ВКонтакте' };
-const checkNote = p => p.siteDead && siteKind(p) === 'none' ?`<small class="dead">⚠️ Ссылка не работает — страница удалена или домен истёк (проверили ${fmtDay(Date.parse(p.siteDead))}). Хороший повод предложить новый сайт</small>` : !p.chk ? '' : `<small class="chk">${p.chk.s === 'none' ? '✓ Проверили ' + (CHECK_HOW[p.chk.how] || '') + ' — сайт не нашли'
-  : p.chk.s === 'own' ? '✓ Нашли при проверке ' + (CHECK_HOW[p.chk.how] || '') : '✓ Ссылка на запись найдена ' + (CHECK_HOW[p.chk.how] || '')}, ${fmtDay(Date.parse(p.chk.d))}</small>`;
+function siteInfoHtml(p) {
+  const info = TochkaSiteInfo.describe(p);
+  const directories = TochkaSiteInfo.directoryUrls(p);
+  const related = [
+    ['Сайт бренда', p.brandSite], ['Сайт оператора', p.operatorSite]
+  ].filter(([, url]) => TochkaSiteInfo.safeUrl(url) && !TochkaSiteInfo.sameUrl(url, p.site));
+  const date = Number.isFinite(Date.parse(info.date)) ? new Date(info.date).toLocaleDateString('ru-RU') : '';
+  return `<div class="site-info"><b>${esc(info.label)}</b>
+    ${info.url ? `<a href="${esc(info.url)}" target="_blank" rel="noopener">${esc(new URL(info.url).hostname)}</a>` : ''}
+    <small>${esc(info.detail)}</small>
+    ${info.source ? `<small>Источник: ${esc(info.source)}</small>` : ''}
+    ${related.map(([label, url]) => `<small>${esc(label)} из OpenStreetMap: <a href="${esc(TochkaSiteInfo.safeUrl(url))}" target="_blank" rel="noopener">${esc(new URL(TochkaSiteInfo.safeUrl(url)).hostname)}</a> · относится к сети, проверьте филиал</small>`).join('')}
+    ${info.method ? `<small>Проверяли: ${esc(info.method)}</small>` : ''}
+    <small>${date ? `Проверка: ${esc(date)}${info.stale ? ' · данные старше 30 дней' : ''}` : 'Дата проверки неизвестна'}</small>
+    <a class="site-search" href="${esc(TochkaSiteInfo.searchUrl(p))}" target="_blank" rel="noopener">Найти сайт в Яндексе</a>
+    <span class="site-info-links">Проверить карточку: <a href="${esc(directories.yandex)}" target="_blank" rel="noopener">Яндекс Карты</a> · <a href="${esc(directories.gis)}" target="_blank" rel="noopener">2ГИС</a></span>
+    </div>`;
+}
 function applyChecks(m) {
-  // указанный сайт или Taplink не открывается (удалён, домен истёк) — для поиска клиентов это «сайта нет»
-  for (const [id, [st, d]] of Object.entries(m._links || {})) {
-    const p = places.get(id); if (!p) continue;
-    p.siteDead = st === 'dead' ? d : '';
-    leadCache.delete(p);
-  }
   for (const [id, value] of Object.entries(m._vk_candidates || {})) {
     const p = places.get(id); if (!p) continue;
     p.vkCandidates = Array.isArray(value && value.items) ? value.items : [];
   }
   for (const [id, v] of Object.entries(m)) {
-    if (id === '_links' || id === '_vk_candidates') continue;
+    if (id.startsWith('_') || !Array.isArray(v)) continue;
     const [s, url, d, how] = v;
     const p = places.get(id); if (!p) continue;
-    p.chk = { s, d, how };
-    if ((s === 'own' || s === 'rec') && url && siteKind(p) !== 'own') p.site = url;
+    p.sourceSite ??= p.site;
+    p.chk = { s, d, how, url };
+    if ((s === 'own' || s === 'rec') && TochkaSiteInfo.safeUrl(url) && siteKind(p) !== 'own') p.site = url;
+    leadCache.delete(p);
+  }
+  for (const [id, value] of Object.entries(m._links || {})) {
+    const p = places.get(id); if (!p || !Array.isArray(value)) continue;
+    const [status, date, url] = value;
+    p.siteCheck = { status, date, url: url || p.sourceSite || p.site };
+    p.siteDead = TochkaSiteInfo.evidence(p)?.status === 'dead' ? date : '';
     leadCache.delete(p);
   }
 }
@@ -662,13 +678,7 @@ function toggleFav(id) {
 // Страницы соцсетей, онлайн-записи и справочников — это не собственный сайт
 const SOCIAL_HOSTS = /(^|\.)(vk\.com|vk\.ru|vkontakte\.ru|m\.vk\.com|instagram\.com|t\.me|telegram\.me|taplink\.(cc|ws|at|ru)|wa\.me|ok\.ru|youtube\.com|tiktok\.com|facebook\.com|dikidi\.(net|ru|app)|yclients\.com|2gis\.ru|2gis\.biz|clients\.site|business\.site|yandex\.ru|avito\.ru|linktr\.ee|zoon\.ru|flamp\.ru)$/i;   // 2gis.biz, clients.site, business.site — бесплатные визитки 2ГИС, Яндекс Бизнеса и Google, а не свой сайт
 function siteKind(p) {
-  if (!p.site) return 'none';
-  let kind = 'own';
-  try {
-    const host = new URL(/^[a-z]+:\/\//i.test(p.site) ? p.site : 'https://' + p.site).hostname.replace(/^www\./, '');
-    if (SOCIAL_HOSTS.test(host)) kind = 'social';
-  } catch { /* странный адрес — считаем своим сайтом */ }
-  return p.siteDead && kind === 'own' || p.siteDead && /taplink/i.test(p.site) ? 'none' : kind;   // мёртвым считаем только свой сайт и Taplink
+  return TochkaSiteInfo.kind(p);
 }
 const leadCache = new WeakMap();
 const LV = { high: 'высокий', mid: 'средний', low: 'низкий' };
@@ -680,8 +690,8 @@ function lead(p) {
   if (kind === 'none' && p.site && p.siteDead) { s += 60; why.push('указанный сайт не открывается'); }
   else if (kind === 'none' && p.chk && p.chk.s === 'none') { s += 60; why.push('сайт не нашли и при проверке'); }
   else if (kind === 'none') { s += 55; why.push('сайт не указан в источнике'); }
-  else if (kind === 'social') { s += 45; why.push('только соцсети или онлайн-запись'); }
-  else why.push('уже есть сайт');
+  else if (kind === 'social') { s += 45; why.push('указана страница вместо отдельного сайта'); }
+  else why.push('есть ссылка на сайт');
   const social = !!(p.tg || p.vk || p.inst || p.email || kind === 'social');
   if (p.phone) { s += 15; why.push('есть телефон'); }
   if (social) { s += 10; why.push('есть соцсети'); }
@@ -1385,7 +1395,7 @@ function itemHtml({ p, d }) {
     <span class="ic" style="--c:${CATS[p.cat].color}">${catIcon(p.cat)}</span>
     <span><div class="nm">${isFav(p.id) ? '<span class="favmark">★</span> ' : ''}${esc(p.name)}</div>
     <div class="sub">${esc(CATS[p.cat].name)}${p.addr ? ' · ' + (privateModeOn() ? privateMask('address') : esc(p.addr)) : ''} · ${fmtDist(d)}</div>
-    <div class="meta-line">${lvPill(l)}${l.kind === 'none' ? '<span class="flag">Предположительно без сайта</span>' : l.kind === 'social' ? '<span class="flag soft">Только соцсети</span>' : ''}${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
+    <div class="meta-line">${lvPill(l)}<span class="flag${l.kind === 'own' ? ' soft' : ''}">${esc(TochkaSiteInfo.describe(p).label)}</span>${p.mine ? '<span class="mine-tag">Ваше</span>' : ''}</div></span>
   </button>`;
 }
 function bindItems(root) {
@@ -1577,7 +1587,7 @@ function select(id, fly, skipMove = false) {
       ${contacts}
       ${vkCandidates}
       ${p.hours ? row('Часы', esc(ruHours(p.hours))) : ''}
-      ${row('Сайт', privateMode && p.site ? privateMask('site') : p.site ? `<a href="${esc(/^https?:/.test(p.site) ? p.site : 'https://' + p.site)}" target="_blank" rel="noopener">${esc(p.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>${l.kind === 'social' ? '<small>это соцсеть или онлайн-запись, своего сайта нет</small>' : ''}${checkNote(p)}` : `<span class="nosite-v">Предположительно без сайта</span><small>Не указан в источнике. Проверь перед предложением.</small>${checkNote(p)}`)}
+      ${row('Сайт', privateMode ? privateMask('site') : siteInfoHtml(p))}
       ${row('Потенциал', `${lvPill(l)} <b class="lv-t lv-t-${l.level}">${LV[l.level]}</b><small>${esc(l.why.join(' · '))}</small>`)}
       ${p.operator ? row('Компания', privateMode ? privateMask('contact') : esc(p.operator)) : ''}
     </div>
@@ -1761,8 +1771,8 @@ let tpls = store.get(TPL_KEY, null) || DEFAULT_TPL.map(x => ({ ...x }));
 let sign = store.get(SIGN_KEY, '');
 let msgPlace = null, msgDraft = null, tplIdx = 0, logged = false;
 const ABOUT_SITE = {
-  none: 'у вас пока нет своего сайта',
-  social: 'вас можно найти только через соцсети или онлайн-запись, а своего сайта нет',
+  none: 'в источнике не удалось найти работающий сайт',
+  social: 'у вас указана страница в соцсети, каталоге или сервисе записи',
   own: 'у вас уже есть сайт — могу сделать его современнее и удобнее для записи'
 };
 function nearestCity(lat, lon) {

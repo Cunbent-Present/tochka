@@ -45,7 +45,7 @@ ENDPOINTS = [
 KEEP = {
     "name", "shop", "amenity", "leisure", "male", "female", "hairdresser", "beauty",
     "addr:street", "addr:housenumber", "addr:city", "phone", "contact:phone",
-    "website", "contact:website", "url", "email", "contact:email", "opening_hours",
+    "website", "contact:website", "url", "brand:website", "operator:website", "email", "contact:email", "opening_hours",
     "contact:vk", "contact:telegram", "contact:instagram", "operator",
 }
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
@@ -95,7 +95,7 @@ SECRET = {"phone": "phone", "contact:phone": "phone", "email": "email", "contact
           "contact:telegram": "tg", "contact:vk": "vk", "contact:instagram": "inst"}
 HIDDEN = "*"           # так в открытом файле помечен контакт, который лежит на сервере
 TILE = 2.0             # если регион не отдаётся целиком — качаем кусками по 2°×2° (при ошибке — по 1°)
-DATA_VERSION = 2
+DATA_VERSION = 3
 FILTER = ('nwr["shop"~"^(hairdresser|beauty|massage|tattoo|pet|florist|bakery)$"]{f};'
           'nwr["amenity"~"^(spa|massage|cafe|restaurant|veterinary)$"]{f};'
           'nwr["leisure"="spa"]{f};')
