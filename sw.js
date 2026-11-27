@@ -1,8 +1,8 @@
 // Кэширует оболочку приложения, чтобы оно быстро открывалось и ставилось на телефон.
-const CACHE = 'tochka-v36-buttons';
+const CACHE = 'tochka-v37-push-guide';
 const SHELL = [
   'buttons.css?v=1', 'buttons.js?v=1', 'fonts/onest-variable.ttf',
-  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js?v=20261126-buttons', 'workspace.css?v=20261123-type1', 'workspace.js', 'push.js?v=20261124', 'completeness.js', 'diamond-3d.js', 'golos-cyrillic.woff2', 'golos-latin.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+  './', 'index.html', 'download.html', 'showcase.html', 'style.css', 'app.js?v=20261126-buttons', 'workspace.css?v=20261123-type1', 'workspace.js', 'push.js?v=20261127-guide', 'completeness.js', 'diamond-3d.js', 'golos-cyrillic.woff2', 'golos-latin.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];

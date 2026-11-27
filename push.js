@@ -23,6 +23,7 @@ async function currentPushSubscription() {
 async function refreshPushUi() {
   if (pushBusy) return;
   pushButton.disabled = true;
+  pushButton.setAttribute('aria-pressed', 'false');
   if (!supportsPush) {
     pushState.textContent = /iPhone|iPad/i.test(navigator.userAgent)
       ? 'На iPhone добавьте «Точку» на экран «Домой», затем откройте её оттуда.'
@@ -43,8 +44,8 @@ async function refreshPushUi() {
     return;
   }
   if (Notification.permission === 'denied') {
-    pushState.textContent = 'Уведомления заблокированы в настройках браузера.';
-    pushButton.textContent = 'Разрешите в браузере';
+    pushState.textContent = 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона, затем откройте «Точку» снова.';
+    pushButton.textContent = 'Уведомления заблокированы';
     return;
   }
   try {
@@ -61,8 +62,12 @@ async function refreshPushUi() {
     pushActive = !!rows?.length;
     pushState.textContent = pushActive
       ? `Включены для города ${city.name}. После сохранения другого города настройка обновится сама.`
-      : `Выбран город ${city.name}. Разрешение браузера попросим только после нажатия кнопки.`;
-    pushButton.textContent = pushActive ? 'Выключить уведомления' : 'Включить уведомления';
+      : Notification.permission === 'granted'
+        ? `Выбран город ${city.name}. Разрешение получено; осталось включить уведомления на этом устройстве.`
+        : `Выбран город ${city.name}. После нажатия кнопки телефон попросит разрешение на уведомления.`;
+    pushButton.textContent = pushActive ? 'Выключить уведомления'
+      : Notification.permission === 'granted' ? 'Включить уведомления' : 'Разрешить уведомления';
+    pushButton.setAttribute('aria-pressed', String(pushActive));
     pushButton.disabled = false;
   } catch (error) {
     pushState.textContent = /^(Для выбранного города|Отправка уведомлений)/.test(error.message)
