@@ -721,6 +721,15 @@ try {
 // yookassa-webhook, см. ОПЛАТА.md). Оплата переводом через Telegram остаётся в любом случае.
 const PLAN = { price: 290, trialDays: 3, tg: 'cunbent', yookassa: false };
 const SESSION_KEY = 'tochka-session', ACCT_KEY = 'tochka-acct';
+const REFERRAL_KEY = 'tochka-pending-referral';
+try {
+  const link = new URL(location.href), inviter = link.searchParams.get('ref');
+  if (inviter) {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inviter)) sessionStorage.setItem(REFERRAL_KEY, inviter);
+    link.searchParams.delete('ref');
+    history.replaceState(null, '', link.pathname + link.search + link.hash);
+  }
+} catch { /* ссылка остаётся доступной, даже если хранилище отключено */ }
 const authTest = (() => { try { return localStorage.getItem('tochka-auth-test') === '1'; } catch { return false; } })();
 const authOn = () => !!(AUTH.url && AUTH.anon && (AUTH.live || authTest));
 let session = store.get(SESSION_KEY, null);    // { access_token, refresh_token, expires_at, user: { id, email, created_at } }
@@ -753,6 +762,26 @@ async function api(path, { method = 'GET', body, token } = {}) {
   let data = null; try { data = await r.json(); } catch { /* пустой ответ */ }
   if (!r.ok) { const e = new Error((data && (data.msg || data.message || data.error_description || data.error)) || 'HTTP ' + r.status); e.status = r.status; e.code = data && (data.error_code || data.code); throw e; }
   return data;
+}
+async function syncReferral(t) {
+  const card = $('#referralCard');
+  if (!card || !session) return;
+  try {
+    const inviter = sessionStorage.getItem(REFERRAL_KEY);
+    if (inviter) {
+      const accepted = await api('/rest/v1/rpc/tochka_claim_referral', { method: 'POST', body: { inviter }, token: t });
+      if (accepted) {
+        sessionStorage.removeItem(REFERRAL_KEY);
+        toast('Приглашение принято. Друг получит 7 дней Pro.', 3200);
+      }
+    }
+    const stats = await api('/rest/v1/rpc/tochka_referral_stats', { method: 'POST', body: {}, token: t });
+    card.hidden = false;
+    $('#referralStats').textContent = `Приглашено: ${stats.registered || 0} · оплатили: ${stats.paid || 0} · начислено: ${stats.earned_days || 0} дней`;
+  } catch (e) {
+    card.hidden = true;
+    console.warn('Реферальная программа недоступна:', e.message);
+  }
 }
 function saveSession(d) {
   if (session?.user?.id !== d.user.id) {
@@ -787,6 +816,7 @@ async function loadStatus() {
   if (!authOn() || !session) { applyAccess(); return; }
   const t = await token();
   if (!t) { applyAccess(); return; }
+  await syncReferral(t);
   try {
     // дата регистрации и оплаченный срок — с сервера, а не из копии на устройстве
     const rows = await api(`/rest/v1/subscriptions?select=paid_until,created_at&user_id=eq.${session.user.id}`, { token: t });
@@ -846,6 +876,7 @@ function signOut(silent) {
   for (const p of places.values()) relockProtectedPlace(p);
   for (const p of Object.values(favs)) relockProtectedPlace(p);
   session = null; acct = null; freeContactsLeft = null; freeContactIds.clear(); store.set(SESSION_KEY, null); store.set(ACCT_KEY, null);
+  $('#referralCard').hidden = true;
   adminVerified = false; privateView = false; try { sessionStorage.removeItem(PRIVATE_KEY); } catch {}
   closePro(); closeAdmin(); admRows = []; applyAccess();
   if (!silent) toast('Вы вышли из аккаунта');
@@ -1103,7 +1134,7 @@ function drawAdmin() {
       <div class="adm-main"><b>${esc(r.email)}</b><span class="adm-st st-${s.k}">${s.t}</span>
       <span class="small">${admDates(r)}</span>
       <span class="small">Последний вход: ${ago(r.last_sign_in_at)}</span></div>
-      <div class="adm-acts"><button class="btn" type="button" data-ext="${r.user_id}" data-d="1">+1 день</button><button class="btn" type="button" data-ext="${r.user_id}" data-d="7">+7 дней</button><button class="btn pri" type="button" data-ext="${r.user_id}" data-m="1">+1 мес</button>${s.k === 'paid' ? `<button class="btn" type="button" data-ext="${r.user_id}" data-m="0">${admArm === r.user_id ? 'Точно?' : 'Отключить'}</button>` : ''}</div>
+      <div class="adm-acts"><button class="btn" type="button" data-ext="${r.user_id}" data-d="1">+1 день</button><button class="btn" type="button" data-ext="${r.user_id}" data-d="7">+7 дней</button><button class="btn" type="button" data-ext="${r.user_id}" data-m="1">+1 мес</button><button class="btn pri" type="button" data-ext="${r.user_id}" data-manual-paid="1" title="После получения перевода: продлить Pro и начислить бонус пригласившему">${admArm === 'paid:' + r.user_id ? 'Оплата получена?' : 'Оплата +1 мес'}</button>${s.k === 'paid' ? `<button class="btn" type="button" data-ext="${r.user_id}" data-m="0">${admArm === r.user_id ? 'Точно?' : 'Отключить'}</button>` : ''}</div>
     </div>`).join('') : `<p class="small">${admRows.length ? 'Ничего не найдено' : 'Пока никто не зарегистрировался'}</p>`;
 }
 function openAdmin() { $('#adm').hidden = false; admArm = ''; loadAdmin(); }
@@ -1119,15 +1150,18 @@ $('#adm').addEventListener('click', async e => {
   if (!b) return;
   const id = b.dataset.ext, days = +b.dataset.d || 0, months = +b.dataset.m;
   if (!days && months === 0 && admArm !== id) { admArm = id; return drawAdmin(); }   // отключение — со второго нажатия
+  if (b.dataset.manualPaid && admArm !== 'paid:' + id) { admArm = 'paid:' + id; return drawAdmin(); }
   admArm = ''; b.disabled = true;
   try {
     // дни — supabase/admin_extend_days.sql, месяцы и отключение — admin_extend
-    const until = days
-      ? await api('/rest/v1/rpc/admin_extend_days', { method: 'POST', body: { target: id, days }, token: await token() })
-      : await api('/rest/v1/rpc/admin_extend', { method: 'POST', body: { target: id, months }, token: await token() });
+    const until = b.dataset.manualPaid
+      ? await api('/rest/v1/rpc/tochka_admin_paid_month', { method: 'POST', body: { target: id }, token: await token() })
+      : days
+        ? await api('/rest/v1/rpc/admin_extend_days', { method: 'POST', body: { target: id, days }, token: await token() })
+        : await api('/rest/v1/rpc/admin_extend', { method: 'POST', body: { target: id, months }, token: await token() });
     const row = admRows.find(r => r.user_id === id); if (row) row.paid_until = until;
     drawAdmin();
-    toast(days || months ? `Pro продлён до ${fmtDateTime(Date.parse(until))}` : 'Подписка отключена', 2600);
+    toast(days || months || b.dataset.manualPaid ? `Pro продлён до ${fmtDateTime(Date.parse(until))}` : 'Подписка отключена', 2600);
     if (session && id === session.user.id) loadStatus();
   } catch (err) {
     b.disabled = false;
@@ -1950,6 +1984,12 @@ $('#backupFile').onchange = async event => {
   } catch (e) { toast(e.message || 'Не удалось восстановить данные.', 4000); }
 };
 $('#pPro').onclick = () => openPro();
+$('#referralCopy').onclick = () => {
+  if (!session || !authOn()) return showGate('email');
+  const link = new URL(location.origin + location.pathname);
+  link.searchParams.set('ref', session.user.id);
+  copy(link.href, 'Ссылка для приглашения скопирована');
+};
 $('#pAcc').onclick = () => openPro();
 $('#pAdm').onclick = () => { if (!privateModeOn() && adminVerified) openAdmin(); };
 $('#pRev').onclick = () => openReviews();
