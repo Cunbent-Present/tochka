@@ -110,6 +110,7 @@ async function main() {
 
 main().catch(error => {
   if (/Supabase (404|400).*push_(config|seen_places|subscriptions)|PGRST205/.test(error.message)) {
-    console.log('Таблицы уведомлений ещё не созданы. Выполните supabase/push_notifications.sql в Supabase.');
-  } else { console.error(error.message); process.exitCode = 1; }
+    console.error('Таблицы уведомлений ещё не созданы. Выполните supabase/push_notifications.sql в Supabase.');
+  } else console.error(error.message);
+  process.exitCode = 1;
 });
